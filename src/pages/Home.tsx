@@ -48,14 +48,16 @@ export function Home() {
       {/* Left Sidebar - Navigation (Hidden on mobile) */}
       <aside className="hidden md:block col-span-2 sticky top-24 h-[calc(100vh-6rem)]">
         <nav className="space-y-1">
-          <Button variant="ghost" className="w-full justify-start font-semibold text-black bg-gray-100">
-            话题分享
-          </Button>
+          <Link to="/" className="block mb-1">
+            <div className="w-full inline-flex items-center justify-start rounded-md font-semibold transition-colors bg-gray-100 text-gray-900 h-10 px-4 py-2 text-sm">
+              话题分享
+            </div>
+          </Link>
           <Link to="/games" className="block">
-            <Button variant="ghost" className="w-full justify-start text-gray-600 gap-2">
+            <div className="w-full inline-flex items-center justify-start rounded-md font-medium transition-colors hover:bg-purple-50 text-gray-700 h-10 px-4 py-2 text-sm gap-2">
               <Gamepad2 className="w-4 h-4 text-purple-600" />
               <span className="truncate whitespace-nowrap">AIGame demo展馆</span>
-            </Button>
+            </div>
           </Link>
         </nav>
       </aside>
@@ -166,7 +168,7 @@ export function Home() {
       </section>
 
       {/* Right Sidebar - Trending & Info (Hidden on mobile) */}
-      <aside className="hidden md:block col-span-3 sticky top-24 h-fit space-y-8">
+      <aside className="hidden md:block col-span-3 space-y-8">
         <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
           <h3 className="font-semibold text-gray-900 mb-4">Trending Topics</h3>
           <div className="flex flex-wrap gap-2">
@@ -178,17 +180,19 @@ export function Home() {
           </div>
         </div>
 
-        <PostComposer />
-        
-        <footer className="text-xs text-gray-400 px-2">
-          <div className="flex flex-wrap gap-x-4 gap-y-2">
-            <a href="#" className="hover:text-gray-600">About</a>
-            <a href="#" className="hover:text-gray-600">Privacy</a>
-            <a href="#" className="hover:text-gray-600">Terms</a>
-            <a href="#" className="hover:text-gray-600">API</a>
-            <span>© 2026 AiGo</span>
-          </div>
-        </footer>
+        <div className="sticky top-24 space-y-8">
+          <PostComposer />
+          
+          <footer className="text-xs text-gray-400 px-2">
+            <div className="flex flex-wrap gap-x-4 gap-y-2">
+              <a href="#" className="hover:text-gray-600">About</a>
+              <a href="#" className="hover:text-gray-600">Privacy</a>
+              <a href="#" className="hover:text-gray-600">Terms</a>
+              <a href="#" className="hover:text-gray-600">API</a>
+              <span>© 2026 AiGo</span>
+            </div>
+          </footer>
+        </div>
       </aside>
     </main>
   );
