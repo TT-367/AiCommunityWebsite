@@ -18,6 +18,12 @@ type PostSummary = {
   isAiAssisted?: boolean;
 };
 
+type FeedMode = 'hot' | 'latest';
+
+interface FeedProps {
+  mode?: FeedMode;
+}
+
 type ProfileRow = {
   id: string;
   display_name: string | null;
@@ -40,10 +46,11 @@ type PostRow = {
 
 type PostLikeRow = { post_id: string };
 
-export function Feed() {
+export function Feed({ mode = 'latest' }: FeedProps) {
   const { user, openModal } = useAuthStore();
   const [loading, setLoading] = useState(true);
   const [posts, setPosts] = useState<PostSummary[]>([]);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const [newTitle, setNewTitle] = useState('');
   const [newContent, setNewContent] = useState('');
@@ -101,6 +108,7 @@ export function Feed() {
 
     (async () => {
       setLoading(true);
+      setLoadError(null);
       const { data, error } = await supabase
         .from('posts')
         .select(
@@ -111,6 +119,7 @@ export function Feed() {
 
       if (cancelled) return;
       if (error || !data) {
+        if (error) setLoadError(error.message);
         setPosts([]);
         setLoading(false);
         return;
@@ -140,6 +149,12 @@ export function Feed() {
       cancelled = true;
     };
   }, [user]);
+
+  const displayPosts = useMemo(() => {
+    const base = posts;
+    if (mode === 'hot') return [...base].sort((a, b) => b.likes - a.likes);
+    return [...base].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }, [mode, posts]);
 
   return (
     <div className="space-y-4">
@@ -236,12 +251,13 @@ export function Feed() {
       </div>
 
       <div className="grid gap-4">
-        {(loading ? [] : posts).map((post) => (
+        {(loading ? [] : displayPosts).map((post) => (
           <PostCard key={post.id} post={post} />
         ))}
         {!loading && posts.length === 0 && (
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6 text-sm text-gray-500">
             暂无真实帖子数据。你可以登录后发布第一篇帖子。
+            {loadError && <div className="mt-2 text-xs text-red-600">加载失败：{loadError}</div>}
             <div className="mt-3 text-xs text-gray-400">下面为示例内容（mock）。</div>
           </div>
         )}

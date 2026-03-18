@@ -163,7 +163,7 @@ export function Home() {
             </div>
           </div>
         ) : (
-          <Feed />
+          <Feed mode={activeTab === 'hot' ? 'hot' : 'latest'} />
         )}
       </section>
 

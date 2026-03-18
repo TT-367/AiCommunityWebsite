@@ -54,6 +54,7 @@ export function PostDetail() {
 
   const [loadingRemote, setLoadingRemote] = useState(false);
   const [remoteNotFound, setRemoteNotFound] = useState(false);
+  const [remoteError, setRemoteError] = useState<string | null>(null);
   const [remotePost, setRemotePost] = useState<RemotePostRow | null>(null);
   const [remoteComments, setRemoteComments] = useState<RemoteCommentRow[]>([]);
   const [remoteLikes, setRemoteLikes] = useState(0);
@@ -71,6 +72,7 @@ export function PostDetail() {
     (async () => {
       setLoadingRemote(true);
       setRemoteNotFound(false);
+      setRemoteError(null);
 
       const { data, error } = await supabase
         .from('posts')
@@ -80,6 +82,7 @@ export function PostDetail() {
 
       if (cancelled) return;
       if (error || !data) {
+        if (error) setRemoteError(error.message);
         setRemoteNotFound(true);
         setLoadingRemote(false);
         return;
@@ -167,6 +170,7 @@ export function PostDetail() {
       return (
         <div className="container mx-auto px-4 py-12 text-center">
           <h2 className="text-2xl font-bold text-gray-900">Post not found</h2>
+          {remoteError && <div className="text-sm text-red-600 mt-3">加载失败：{remoteError}</div>}
           <Link to="/" className="text-blue-600 hover:underline mt-4 inline-block">
             Return to Home
           </Link>
