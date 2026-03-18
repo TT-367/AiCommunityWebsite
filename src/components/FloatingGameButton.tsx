@@ -7,7 +7,7 @@ export function FloatingGameButton() {
   const isGamesSection = location.pathname.startsWith('/games');
 
   return (
-    <div className="fixed right-2 top-1/2 -translate-y-1/2 z-50 flex md:hidden">
+    <div className="fixed right-3 bottom-6 z-50 flex md:hidden">
       {isGamesSection ? (
         <button 
           onClick={() => navigate(-1)}
@@ -23,7 +23,7 @@ export function FloatingGameButton() {
         <Link 
           to="/games"
           className="group flex items-center gap-2 bg-white border border-gray-200 shadow-xl py-3 px-3 rounded-xl transition-colors"
-          title="AIGame demo展馆"
+          title="AIGame 展馆"
         >
           <div className="bg-purple-100 p-2 rounded-lg group-hover:bg-purple-600 group-hover:text-white transition-colors duration-300 flex-shrink-0">
             <Gamepad2 className="w-6 h-6 text-purple-600 group-hover:text-white" />

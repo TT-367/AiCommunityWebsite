@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { Header } from './components/Header';
 import { FloatingGameButton } from './components/FloatingGameButton';
+import { FloatingPostButton } from './components/FloatingPostButton';
 import { AuthModal } from './components/AuthModal';
 import { useAuthStore } from './stores/authStore';
 import { Home } from './pages/Home';
@@ -22,6 +23,7 @@ function App() {
       <div className="min-h-screen bg-[#F9FAFB] text-gray-900 font-sans antialiased relative overflow-x-hidden">
         <Header />
         <FloatingGameButton />
+        <FloatingPostButton />
         <AuthModal />
         
         <Routes>

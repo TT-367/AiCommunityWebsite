@@ -33,12 +33,21 @@ type RemotePostRow = {
 
 type RemoteCommentRow = {
   id: string;
+  parent_id: string | null;
   content: string;
   created_at: string;
   author: ProfileRow | ProfileRow[] | null;
+  comment_likes: CountRow[];
 };
 
 type PostLikeRow = { post_id: string };
+
+type CommentLikeRow = { comment_id: string };
+
+type RemoteComment = RemoteCommentRow & {
+  likesCount: number;
+  viewerHasLiked: boolean;
+};
 
 const normalizeProfile = (input: ProfileRow | ProfileRow[] | null | undefined): ProfileRow | null => {
   if (!input) return null;
@@ -56,14 +65,68 @@ export function PostDetail() {
   const [remoteNotFound, setRemoteNotFound] = useState(false);
   const [remoteError, setRemoteError] = useState<string | null>(null);
   const [remotePost, setRemotePost] = useState<RemotePostRow | null>(null);
-  const [remoteComments, setRemoteComments] = useState<RemoteCommentRow[]>([]);
+  const [remoteComments, setRemoteComments] = useState<RemoteComment[]>([]);
   const [remoteLikes, setRemoteLikes] = useState(0);
   const [remoteCommentsCount, setRemoteCommentsCount] = useState(0);
   const [viewerHasLiked, setViewerHasLiked] = useState(false);
 
+  const [postMenuOpen, setPostMenuOpen] = useState(false);
+  const [postActionError, setPostActionError] = useState<string | null>(null);
+
   const [newComment, setNewComment] = useState('');
   const [submittingComment, setSubmittingComment] = useState(false);
   const [liking, setLiking] = useState(false);
+  const [commentLikeBusy, setCommentLikeBusy] = useState<string | null>(null);
+
+  const [replyTarget, setReplyTarget] = useState<
+    | null
+    | {
+        rootId: string;
+        mentionName?: string;
+        label: string;
+      }
+  >(null);
+
+  const mapCommentRow = (row: RemoteCommentRow, likedSet: Set<string>): RemoteComment => {
+    const likesCount = row.comment_likes?.[0]?.count ?? 0;
+    return {
+      ...row,
+      likesCount: Number(likesCount),
+      viewerHasLiked: likedSet.has(row.id),
+    };
+  };
+
+  const refreshRemoteComments = async (targetPostId: string) => {
+    const { data: commentsData, error: commentsError } = await supabase
+      .from('comments')
+      .select('id,parent_id,content,created_at,author:profiles!comments_author_id_fkey(id,display_name,avatar_url),comment_likes(count)')
+      .eq('post_id', targetPostId)
+      .order('created_at', { ascending: true });
+
+    if (commentsError || !commentsData) {
+      return { rows: [] as RemoteComment[], error: commentsError?.message ?? null };
+    }
+
+    const rawRows = (commentsData as unknown as RemoteCommentRow[] | null) ?? [];
+
+    let likedSet = new Set<string>();
+    if (user && rawRows.length > 0) {
+      const { data: likedRows } = await supabase
+        .from('comment_likes')
+        .select('comment_id')
+        .eq('user_id', user.id)
+        .in(
+          'comment_id',
+          rawRows.map(r => r.id)
+        );
+      likedSet = new Set(((likedRows as CommentLikeRow[] | null | undefined) ?? []).map(r => r.comment_id));
+    }
+
+    return {
+      rows: rawRows.map(r => mapCommentRow(r, likedSet)),
+      error: null,
+    };
+  };
 
   useEffect(() => {
     if (!isUuid) return;
@@ -76,7 +139,7 @@ export function PostDetail() {
 
       const { data, error } = await supabase
         .from('posts')
-        .select('id,title,content,description,tags,is_ai_assisted,created_at,author:profiles(id,display_name,avatar_url),comments(count),post_likes(count)')
+        .select('id,title,content,description,tags,is_ai_assisted,created_at,author:profiles!posts_author_id_fkey(id,display_name,avatar_url),comments(count),post_likes(count)')
         .eq('id', postId)
         .maybeSingle();
 
@@ -95,12 +158,8 @@ export function PostDetail() {
       setRemoteCommentsCount(Number(commentsCount));
       setRemotePost(row);
 
-      const { data: commentsData } = await supabase
-        .from('comments')
-        .select('id,content,created_at,author:profiles(id,display_name,avatar_url)')
-        .eq('post_id', postId)
-        .order('created_at', { ascending: true });
-      if (!cancelled) setRemoteComments((commentsData as unknown as RemoteCommentRow[] | null) ?? []);
+      const commentsResult = await refreshRemoteComments(postId);
+      if (!cancelled) setRemoteComments(commentsResult.rows);
 
       if (user) {
         const { data: likeRow } = await supabase
@@ -121,6 +180,13 @@ export function PostDetail() {
       cancelled = true;
     };
   }, [isUuid, postId, user]);
+
+  useEffect(() => {
+    if (!postMenuOpen) return;
+    const onMouseDown = () => setPostMenuOpen(false);
+    window.addEventListener('mousedown', onMouseDown);
+    return () => window.removeEventListener('mousedown', onMouseDown);
+  }, [postMenuOpen]);
 
   const embeddedGames = useMemo(() => {
     const mockPost = mockPosts.find(p => p.id === postId);
@@ -185,6 +251,8 @@ export function PostDetail() {
       ? String(postAuthor.avatar_url)
       : `https://api.dicebear.com/7.x/avataaars/svg?seed=${authorId || remotePost.id}`;
 
+    const canManagePost = Boolean(user && user.id === authorId);
+
     return (
       <div className="min-h-screen bg-[#F9FAFB]">
         <div className="container mx-auto px-4 py-6 max-w-4xl">
@@ -211,10 +279,78 @@ export function PostDetail() {
                     </div>
                   </div>
                 </Link>
-                <Button variant="ghost" size="icon" className="text-gray-400 hover:text-gray-600">
-                  <MoreHorizontal className="w-5 h-5" />
-                </Button>
+                <div className="relative flex-shrink-0" onMouseDown={(e) => e.stopPropagation()}>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="text-gray-400 hover:text-gray-600"
+                    onClick={() => {
+                      setPostActionError(null);
+                      setPostMenuOpen(v => !v);
+                    }}
+                  >
+                    <MoreHorizontal className="w-5 h-5" />
+                  </Button>
+
+                  {postMenuOpen && (
+                    <div className="absolute right-0 top-11 w-44 rounded-xl border border-gray-100 bg-white shadow-xl overflow-hidden z-50">
+                      {canManagePost ? (
+                        <button
+                          type="button"
+                          className="w-full text-left px-4 py-2.5 text-sm text-red-600 hover:bg-red-50"
+                          onClick={async () => {
+                            setPostMenuOpen(false);
+                            if (!user) {
+                              openModal('signIn');
+                              return;
+                            }
+                            const ok = window.confirm('确认删除这篇帖子吗？删除后无法恢复。');
+                            if (!ok) return;
+                            setPostActionError(null);
+                            const { error } = await supabase
+                              .from('posts')
+                              .delete()
+                              .eq('id', postId)
+                              .eq('author_id', user.id);
+                            if (error) {
+                              setPostActionError(error.message);
+                              return;
+                            }
+                            window.dispatchEvent(new Event('posts:refresh'));
+                            window.location.href = '/';
+                          }}
+                        >
+                          删除帖子
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          className="w-full text-left px-4 py-2.5 text-sm text-gray-800 hover:bg-gray-50"
+                          onClick={async () => {
+                            setPostMenuOpen(false);
+                            if (!user) {
+                              openModal('signIn');
+                              return;
+                            }
+                            const reason = window.prompt('举报原因（可选）') ?? null;
+                            const { error } = await supabase
+                              .from('post_reports')
+                              .upsert({ post_id: postId, reporter_id: user.id, reason }, { onConflict: 'post_id,reporter_id' });
+                            if (error) {
+                              setPostActionError(error.message);
+                              return;
+                            }
+                          }}
+                        >
+                          举报帖子
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
+
+              {postActionError && <div className="text-sm text-red-600 mb-4">操作失败：{postActionError}</div>}
 
               <h1 className="text-2xl md:text-3xl font-bold text-gray-900 mb-4 leading-tight">{remotePost.title}</h1>
 
@@ -290,6 +426,18 @@ export function PostDetail() {
             </h3>
 
             <div className="mb-6">
+              {replyTarget && (
+                <div className="mb-2 flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-700">
+                  <div className="min-w-0 truncate">回复给：{replyTarget.label}</div>
+                  <button
+                    type="button"
+                    className="text-gray-500 hover:text-gray-900"
+                    onClick={() => setReplyTarget(null)}
+                  >
+                    取消
+                  </button>
+                </div>
+              )}
               <textarea
                 value={newComment}
                 onChange={(e) => setNewComment(e.target.value)}
@@ -307,62 +455,205 @@ export function PostDetail() {
                     }
                     setSubmittingComment(true);
                     try {
+                      const rootId = replyTarget?.rootId ?? null;
+                      const mentionName = replyTarget?.mentionName;
+                      const trimmed = newComment.trim();
+                      const withMention = mentionName && !trimmed.startsWith(`@${mentionName}`)
+                        ? `@${mentionName} ${trimmed}`
+                        : trimmed;
+
                       const { error } = await supabase.from('comments').insert({
                         post_id: postId,
                         author_id: user.id,
-                        content: newComment.trim(),
+                        content: withMention,
+                        parent_id: rootId,
                       });
                       if (error) throw error;
                       setNewComment('');
+                      setReplyTarget(null);
 
-                      const { data: commentsData } = await supabase
-                        .from('comments')
-                        .select('id,content,created_at,author:profiles(id,display_name,avatar_url)')
-                        .eq('post_id', postId)
-                        .order('created_at', { ascending: true });
-                      setRemoteComments(((commentsData ?? []) as unknown as RemoteCommentRow[]));
+                      const commentsResult = await refreshRemoteComments(postId);
+                      setRemoteComments(commentsResult.rows);
                       setRemoteCommentsCount(v => v + 1);
                     } finally {
                       setSubmittingComment(false);
                     }
                   }}
                 >
-                  发表评论
+                  {replyTarget ? '回复' : '发表评论'}
                 </Button>
               </div>
             </div>
 
             <div className="space-y-6">
               {remoteComments.length > 0 ? (
-                remoteComments.map((comment) => {
-                  const cAuthor = normalizeProfile(comment.author);
-                  const cAuthorId = cAuthor?.id ?? '';
-                  const cName = cAuthor?.display_name ?? `User ${String(cAuthorId).slice(0, 4)}`;
-                  const cAvatar = cAuthor?.avatar_url
-                    ? String(cAuthor.avatar_url)
-                    : `https://api.dicebear.com/7.x/avataaars/svg?seed=${cAuthorId || comment.id}`;
+                (() => {
+                  const top = remoteComments.filter(c => !c.parent_id);
+                  const repliesByRoot = new Map<string, RemoteComment[]>();
+                  for (const c of remoteComments) {
+                    if (!c.parent_id) continue;
+                    const arr = repliesByRoot.get(c.parent_id) ?? [];
+                    arr.push(c);
+                    repliesByRoot.set(c.parent_id, arr);
+                  }
 
-                  return (
-                    <div key={comment.id} className="flex gap-4 group">
-                      <div className="flex-shrink-0">
-                        <Link to={`/user/${cAuthorId}`} className="block">
-                          <Avatar src={cAvatar} alt={cName} size="sm" />
-                        </Link>
-                      </div>
-                      <div className="flex-1">
-                        <div className="bg-gray-50 rounded-2xl rounded-tl-none p-4">
-                          <div className="flex items-center justify-between mb-2">
-                            <span className="font-semibold text-sm text-gray-900">{cName}</span>
-                            <span className="text-xs text-gray-400">
-                              {formatDistanceToNow(new Date(comment.created_at), { addSuffix: true })}
-                            </span>
+                  const renderCommentRow = (comment: RemoteComment, depth: 0 | 1, repliesCount: number = 0) => {
+                    const cAuthor = normalizeProfile(comment.author);
+                    const cAuthorId = cAuthor?.id ?? '';
+                    const cName = cAuthor?.display_name ?? `User ${String(cAuthorId).slice(0, 4)}`;
+                    const cAvatar = cAuthor?.avatar_url
+                      ? String(cAuthor.avatar_url)
+                      : `https://api.dicebear.com/7.x/avataaars/svg?seed=${cAuthorId || comment.id}`;
+                    
+                    const isExpanded = expandedComments.includes(comment.id);
+
+                    return (
+                      <div key={comment.id} className={depth === 0 ? 'flex gap-4 group' : 'flex gap-3 group mt-3'}>
+                        <div className="flex-shrink-0">
+                          <Link to={`/user/${cAuthorId}`} className="block">
+                            <Avatar src={cAvatar} alt={cName} size="sm" className={depth === 0 ? undefined : 'w-6 h-6'} />
+                          </Link>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className={depth === 0 ? 'bg-gray-50 rounded-2xl rounded-tl-none p-4' : 'bg-transparent pt-1 pb-2'}>
+                            <div className="flex items-center justify-between mb-1">
+                              <div className="flex items-center gap-2">
+                                <span className={depth === 0 ? 'font-semibold text-sm text-gray-900' : 'font-semibold text-[13px] text-gray-800'}>{cName}</span>
+                                {depth === 1 && comment.content.startsWith('@') && (
+                                  <span className="text-[12px] text-gray-500 font-medium">
+                                    回复
+                                  </span>
+                                )}
+                              </div>
+                              <span className={depth === 0 ? 'text-xs text-gray-400' : 'text-[11px] text-gray-400'}>
+                                {formatDistanceToNow(new Date(comment.created_at), { addSuffix: true })}
+                              </span>
+                            </div>
+                            <p className={depth === 0 ? 'text-gray-700 text-sm leading-relaxed whitespace-pre-wrap' : 'text-gray-600 text-[13px] leading-relaxed whitespace-pre-wrap'}>
+                              {depth === 1 && comment.content.startsWith('@') ? (
+                                <>
+                                  <span className="text-blue-600 mr-1">{comment.content.split(' ')[0]}</span>
+                                  {comment.content.substring(comment.content.indexOf(' ') + 1)}
+                                </>
+                              ) : (
+                                comment.content
+                              )}
+                            </p>
+
+                            <div className={depth === 0 ? 'mt-3 flex items-center gap-2' : 'mt-1.5 flex items-center gap-2'}>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className={comment.viewerHasLiked ? 'text-purple-600 hover:text-purple-700 hover:bg-purple-50 gap-1.5 h-7 px-2' : 'text-gray-500 hover:text-blue-600 hover:bg-blue-50 gap-1.5 h-7 px-2'}
+                                disabled={commentLikeBusy === comment.id}
+                                onClick={async () => {
+                                  if (!user) {
+                                    openModal('signIn');
+                                    return;
+                                  }
+                                  setCommentLikeBusy(comment.id);
+                                  try {
+                                    if (comment.viewerHasLiked) {
+                                      const { error } = await supabase
+                                        .from('comment_likes')
+                                        .delete()
+                                        .eq('comment_id', comment.id)
+                                        .eq('user_id', user.id);
+                                      if (error) throw error;
+                                      setRemoteComments(prev =>
+                                        prev.map(c =>
+                                          c.id === comment.id
+                                            ? { ...c, viewerHasLiked: false, likesCount: Math.max(0, c.likesCount - 1) }
+                                            : c
+                                        )
+                                      );
+                                    } else {
+                                      const { error } = await supabase
+                                        .from('comment_likes')
+                                        .insert({ comment_id: comment.id, user_id: user.id });
+                                      if (error) throw error;
+                                      setRemoteComments(prev =>
+                                        prev.map(c =>
+                                          c.id === comment.id
+                                            ? { ...c, viewerHasLiked: true, likesCount: c.likesCount + 1 }
+                                            : c
+                                        )
+                                      );
+                                    }
+                                  } finally {
+                                    setCommentLikeBusy(null);
+                                  }
+                                }}
+                              >
+                                <ThumbsUp className="w-4 h-4" />
+                                <span className="font-medium">{comment.likesCount > 0 ? comment.likesCount : ''}</span>
+                              </Button>
+
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 px-2 text-gray-500 hover:text-gray-900 hover:bg-gray-100"
+                                onClick={() => {
+                                  const rootId = comment.parent_id ?? comment.id;
+                                  const mentionName = comment.parent_id ? cName : undefined;
+                                  setReplyTarget({ rootId, mentionName, label: cName });
+                                  if (mentionName) {
+                                    setNewComment(prev => {
+                                      const trimmedPrev = prev.trim();
+                                      if (trimmedPrev.startsWith(`@${mentionName}`)) return prev;
+                                      return `@${mentionName} `;
+                                    });
+                                  }
+                                }}
+                              >
+                                回复
+                              </Button>
+                              
+                              {depth === 0 && repliesCount > 0 && (
+                                <button
+                                  type="button"
+                                  onClick={() => toggleReplies(comment.id)}
+                                  className="ml-2 text-xs font-medium text-blue-600 hover:text-blue-700 flex items-center gap-1"
+                                >
+                                  {isExpanded ? (
+                                    <>
+                                      <ChevronUp className="w-3 h-3" />
+                                      收起回复
+                                    </>
+                                  ) : (
+                                    <>
+                                      <ChevronDown className="w-3 h-3" />
+                                      展开 {repliesCount} 条回复
+                                    </>
+                                  )}
+                                </button>
+                              )}
+                            </div>
                           </div>
-                          <p className="text-gray-700 text-sm leading-relaxed">{comment.content}</p>
                         </div>
                       </div>
+                    );
+                  };
+
+                  return (
+                    <div className="space-y-6">
+                      {top.map((c) => {
+                        const replies = repliesByRoot.get(c.id) ?? [];
+                        const isExpanded = expandedComments.includes(c.id);
+                        return (
+                          <div key={c.id}>
+                            {renderCommentRow(c, 0, replies.length)}
+                            {replies.length > 0 && isExpanded && (
+                              <div className="mt-2 pl-4 ml-[1.125rem] border-l-2 border-gray-100 flex flex-col gap-1">
+                                {replies.map(r => renderCommentRow(r, 1, 0))}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                   );
-                })
+                })()
               ) : (
                 <div className="text-center py-8 text-gray-500">No comments yet. Be the first to share your thoughts!</div>
               )}
@@ -439,7 +730,7 @@ export function PostDetail() {
 
                 {embeddedGames.length > 0 && (
                   <div className="mt-8">
-                    <div className="text-sm font-semibold text-gray-900 mb-3">Game Demo</div>
+                    <div className="text-sm font-semibold text-gray-900 mb-3">相关游戏</div>
                     <div className="space-y-3">
                       {embeddedGames.map(game => (
                         <Link
@@ -461,7 +752,7 @@ export function PostDetail() {
                                 </div>
                               </div>
                               <div className="flex items-center gap-2 flex-shrink-0">
-                                <Badge className="bg-black/60 text-white border-none text-xs font-normal">Demo</Badge>
+                                <Badge className="bg-black/60 text-white border-none text-xs font-normal">游戏</Badge>
                                 <span className="text-xs text-gray-500">👍 {game.likes.toLocaleString()}</span>
                               </div>
                             </div>

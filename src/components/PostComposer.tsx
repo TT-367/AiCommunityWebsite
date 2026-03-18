@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 import { useAuthStore } from '../stores/authStore';
@@ -6,9 +6,10 @@ import { Button } from './ui/Button';
 
 interface PostComposerProps {
   className?: string;
+  headerRight?: ReactNode;
 }
 
-export function PostComposer({ className }: PostComposerProps) {
+export function PostComposer({ className, headerRight }: PostComposerProps) {
   const navigate = useNavigate();
   const user = useAuthStore(s => s.user);
   const openModal = useAuthStore(s => s.openModal);
@@ -23,11 +24,14 @@ export function PostComposer({ className }: PostComposerProps) {
     <div className={className ?? 'bg-white rounded-xl border border-gray-100 p-5 shadow-sm'}>
       <div className="flex items-center justify-between mb-3">
         <div className="font-semibold text-gray-900">发表新帖子</div>
-        {!user && (
-          <Button variant="secondary" size="sm" onClick={() => openModal('signIn')}>
-            登录后发布
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          {!user && (
+            <Button variant="secondary" size="sm" onClick={() => openModal('signIn')}>
+              登录后发布
+            </Button>
+          )}
+          {headerRight}
+        </div>
       </div>
 
       <div className="space-y-3">

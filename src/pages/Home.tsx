@@ -1,13 +1,11 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Heart, Gamepad2, FileText, Plus } from 'lucide-react';
 import { Feed } from '../components/Feed';
-import { PostComposer } from '../components/PostComposer';
 import { HeroSearch, type HomeTab } from '../components/HeroSearch';
 import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
-import { mockGames, mockPosts } from '../data/mock';
-
+import { supabase } from '../lib/supabaseClient';
 export function Home() {
   const [activeTab, setActiveTab] = useState<HomeTab>('hot');
 
@@ -15,33 +13,85 @@ export function Home() {
     'RAG', 'Agent', 'Prompt Engineering', 'Local LLM', 'Fine-tuning', 'Vector DB', 'Inference', 'Eval'
   ];
 
-  const developerLeaderboard = useMemo(() => {
-    const authorMap = new Map<string, { id: string; name: string; handle: string; avatar: string }>();
-    for (const post of mockPosts) authorMap.set(post.author.id, post.author);
-    for (const game of mockGames) authorMap.set(game.author.id, game.author);
+  type LeaderboardRow = {
+    author_id: string;
+    display_name: string | null;
+    avatar_url: string | null;
+    total_likes: number;
+    total_posts: number;
+    top_post_id: string | null;
+    top_post_title: string | null;
+    top_post_likes: number | null;
+  };
 
-    const getPostsByAuthor = (authorId: string) => mockPosts.filter(p => p.author.id === authorId);
-    const getGamesByAuthor = (authorId: string) => mockGames.filter(g => g.author.id === authorId);
+  type DeveloperEntry = {
+    author: { id: string; name: string; handle: string; avatar: string };
+    totalLikes: number;
+    totalPosts: number;
+    totalGames: number;
+    topPost: { id: string; title: string; likes: number } | null;
+    topGame: { id: string; title: string; likes: number } | null;
+  };
 
-    const developers = Array.from(authorMap.values()).map(author => {
-      const posts = getPostsByAuthor(author.id);
-      const games = getGamesByAuthor(author.id);
-      const postsSorted = [...posts].sort((a, b) => b.likes - a.likes);
-      const gamesSorted = [...games].sort((a, b) => b.likes - a.likes);
-      const totalLikes = posts.reduce((sum, p) => sum + p.likes, 0) + games.reduce((sum, g) => sum + g.likes, 0);
+  const [developerLoading, setDeveloperLoading] = useState(false);
+  const [developerError, setDeveloperError] = useState<string | null>(null);
+  const [developerLeaderboard, setDeveloperLeaderboard] = useState<DeveloperEntry[]>([]);
 
-      return {
-        author,
-        totalLikes,
-        totalPosts: posts.length,
-        totalGames: games.length,
-        topPost: postsSorted[0],
-        topGame: gamesSorted[0],
-      };
-    });
+  useEffect(() => {
+    if (activeTab !== 'developers') return;
+    let cancelled = false;
 
-    return developers.sort((a, b) => b.totalLikes - a.totalLikes).slice(0, 10);
-  }, []);
+    (async () => {
+      setDeveloperLoading(true);
+      setDeveloperError(null);
+      const { data, error } = await supabase.rpc('get_developer_leaderboard', { limit_count: 10 });
+      if (cancelled) return;
+      if (error || !data) {
+        setDeveloperLeaderboard([]);
+        setDeveloperError(error?.message ?? '加载失败');
+        setDeveloperLoading(false);
+        return;
+      }
+
+      const rows = (data as unknown as LeaderboardRow[]).map((row) => {
+        const authorId = String(row.author_id);
+        const name = row.display_name ? String(row.display_name) : `User ${authorId.slice(0, 4)}`;
+        const avatar = row.avatar_url
+          ? String(row.avatar_url)
+          : `https://api.dicebear.com/7.x/avataaars/svg?seed=${authorId}`;
+        const topPost = row.top_post_id && row.top_post_title
+          ? {
+              id: String(row.top_post_id),
+              title: String(row.top_post_title),
+              likes: Number(row.top_post_likes ?? 0),
+            }
+          : null;
+
+        const entry: DeveloperEntry = {
+          author: {
+            id: authorId,
+            name,
+            handle: `@${authorId.slice(0, 6)}`,
+            avatar,
+          },
+          totalLikes: Number(row.total_likes ?? 0),
+          totalPosts: Number(row.total_posts ?? 0),
+          totalGames: 0,
+          topPost,
+          topGame: null,
+        };
+
+        return entry;
+      });
+
+      setDeveloperLeaderboard(rows);
+      setDeveloperLoading(false);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab]);
 
   return (
     <main className="container mx-auto px-4 py-8 grid grid-cols-1 md:grid-cols-12 gap-8">
@@ -56,7 +106,7 @@ export function Home() {
           <Link to="/games" className="block">
             <div className="w-full inline-flex items-center justify-start rounded-md font-medium transition-colors hover:bg-purple-50 text-gray-700 h-10 px-4 py-2 text-sm gap-2">
               <Gamepad2 className="w-4 h-4 text-purple-600" />
-              <span className="truncate whitespace-nowrap">AIGame demo展馆</span>
+              <span className="truncate whitespace-nowrap">AIGame 展馆</span>
             </div>
           </Link>
         </nav>
@@ -76,7 +126,13 @@ export function Home() {
             </div>
 
             <div className="divide-y divide-gray-50">
-              {developerLeaderboard.map((dev, idx) => {
+              {developerLoading ? (
+                <div className="px-5 py-6 text-sm text-gray-400">加载中...</div>
+              ) : developerError ? (
+                <div className="px-5 py-6 text-sm text-red-600">加载失败：{developerError}</div>
+              ) : developerLeaderboard.length === 0 ? (
+                <div className="px-5 py-6 text-sm text-gray-400">暂无数据</div>
+              ) : developerLeaderboard.map((dev, idx) => {
                 return (
                   <div key={dev.author.id} className="px-5 py-3">
                     <div className="flex items-start gap-3">
@@ -159,9 +215,6 @@ export function Home() {
           </div>
         ) : (
           <>
-            <div className="md:hidden">
-              <PostComposer className="bg-white rounded-xl border border-gray-100 p-4 shadow-sm" />
-            </div>
             <Feed mode={activeTab === 'hot' ? 'hot' : 'latest'} />
           </>
         )}
@@ -180,19 +233,15 @@ export function Home() {
           </div>
         </div>
 
-        <div className="sticky top-24 space-y-8">
-          <PostComposer />
-          
-          <footer className="text-xs text-gray-400 px-2">
-            <div className="flex flex-wrap gap-x-4 gap-y-2">
-              <a href="#" className="hover:text-gray-600">About</a>
-              <a href="#" className="hover:text-gray-600">Privacy</a>
-              <a href="#" className="hover:text-gray-600">Terms</a>
-              <a href="#" className="hover:text-gray-600">API</a>
-              <span>© 2026 AiGo</span>
-            </div>
-          </footer>
-        </div>
+        <footer className="text-xs text-gray-400 px-2">
+          <div className="flex flex-wrap gap-x-4 gap-y-2">
+            <a href="#" className="hover:text-gray-600">About</a>
+            <a href="#" className="hover:text-gray-600">Privacy</a>
+            <a href="#" className="hover:text-gray-600">Terms</a>
+            <a href="#" className="hover:text-gray-600">API</a>
+            <span>© 2026 AiGo</span>
+          </div>
+        </footer>
       </aside>
     </main>
   );

@@ -114,7 +114,7 @@ export function Feed({ mode = 'latest' }: FeedProps) {
       const { data, error } = await supabase
         .from('posts')
         .select(
-          'id,title,description,tags,is_ai_assisted,created_at,author:profiles(id,display_name,avatar_url),comments(count),post_likes(count)'
+          'id,title,description,tags,is_ai_assisted,created_at,author:profiles!posts_author_id_fkey(id,display_name,avatar_url),comments(count),post_likes(count)'
         )
         .order('created_at', { ascending: false })
         .limit(50);
