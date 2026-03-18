@@ -3,7 +3,6 @@ import { PostCard } from './PostCard';
 import { mockPosts } from '../data/mock';
 import { supabase } from '../lib/supabaseClient';
 import { useAuthStore } from '../stores/authStore';
-import { Button } from './ui/Button';
 
 type PostSummary = {
   id: string;
@@ -47,16 +46,11 @@ type PostRow = {
 type PostLikeRow = { post_id: string };
 
 export function Feed({ mode = 'latest' }: FeedProps) {
-  const { user, openModal } = useAuthStore();
+  const user = useAuthStore(s => s.user);
   const [loading, setLoading] = useState(true);
   const [posts, setPosts] = useState<PostSummary[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
-
-  const [newTitle, setNewTitle] = useState('');
-  const [newContent, setNewContent] = useState('');
-  const [newTags, setNewTags] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [refreshTick, setRefreshTick] = useState(0);
 
   const fallbackPosts = useMemo<PostSummary[]>(
     () =>
@@ -104,6 +98,14 @@ export function Feed({ mode = 'latest' }: FeedProps) {
   };
 
   useEffect(() => {
+    const onRefresh = () => setRefreshTick(t => t + 1);
+    window.addEventListener('posts:refresh', onRefresh);
+    return () => {
+      window.removeEventListener('posts:refresh', onRefresh);
+    };
+  }, []);
+
+  useEffect(() => {
     let cancelled = false;
 
     (async () => {
@@ -148,7 +150,7 @@ export function Feed({ mode = 'latest' }: FeedProps) {
     return () => {
       cancelled = true;
     };
-  }, [user]);
+  }, [refreshTick, user]);
 
   const displayPosts = useMemo(() => {
     const base = posts;
@@ -158,98 +160,6 @@ export function Feed({ mode = 'latest' }: FeedProps) {
 
   return (
     <div className="space-y-4">
-      <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
-        <div className="flex items-center justify-between mb-3">
-          <div className="font-semibold text-gray-900">发布新帖子</div>
-          {!user && (
-            <Button variant="secondary" size="sm" onClick={() => openModal('signIn')}>
-              登录后发布
-            </Button>
-          )}
-        </div>
-
-        <div className="space-y-3">
-          <input
-            value={newTitle}
-            onChange={(e) => setNewTitle(e.target.value)}
-            className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500"
-            placeholder="标题"
-            disabled={!user || submitting}
-          />
-          <textarea
-            value={newContent}
-            onChange={(e) => setNewContent(e.target.value)}
-            className="w-full min-h-[96px] rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500"
-            placeholder="正文（支持 Markdown）"
-            disabled={!user || submitting}
-          />
-          <input
-            value={newTags}
-            onChange={(e) => setNewTags(e.target.value)}
-            className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500"
-            placeholder="标签（可选，逗号分隔，如：RAG,vLLM）"
-            disabled={!user || submitting}
-          />
-
-          {submitError && <div className="text-sm text-red-600">{submitError}</div>}
-
-          <div className="flex justify-end">
-            <Button
-              disabled={!user || submitting || newTitle.trim().length === 0 || newContent.trim().length === 0}
-              onClick={async () => {
-                if (!user) {
-                  openModal('signIn');
-                  return;
-                }
-
-                setSubmitting(true);
-                setSubmitError(null);
-                try {
-                  const tags = newTags
-                    .split(',')
-                    .map(t => t.trim())
-                    .filter(Boolean)
-                    .slice(0, 8);
-
-                  const description = newContent.replace(/\s+/g, ' ').trim().slice(0, 160);
-                  const { error } = await supabase.from('posts').insert({
-                    author_id: user.id,
-                    title: newTitle.trim(),
-                    content: newContent,
-                    description,
-                    tags,
-                  });
-                  if (error) throw error;
-
-                  setNewTitle('');
-                  setNewContent('');
-                  setNewTags('');
-
-                  const { data } = await supabase
-                    .from('posts')
-                    .select(
-                      'id,title,description,tags,is_ai_assisted,created_at,author:profiles(id,display_name,avatar_url),comments(count),post_likes(count)'
-                    )
-                    .order('created_at', { ascending: false })
-                    .limit(50);
-
-                  const mapped: PostSummary[] = ((data ?? []) as unknown as PostRow[]).map(mapPostRow);
-
-                  setPosts(mapped);
-                } catch (err) {
-                  const message = err instanceof Error ? err.message : '发布失败';
-                  setSubmitError(message);
-                } finally {
-                  setSubmitting(false);
-                }
-              }}
-            >
-              发布
-            </Button>
-          </div>
-        </div>
-      </div>
-
       <div className="grid gap-4">
         {(loading ? [] : displayPosts).map((post) => (
           <PostCard key={post.id} post={post} />

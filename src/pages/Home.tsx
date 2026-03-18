@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Heart, Gamepad2, FileText, Plus } from 'lucide-react';
 import { Feed } from '../components/Feed';
+import { PostComposer } from '../components/PostComposer';
 import { HeroSearch, type HomeTab } from '../components/HeroSearch';
 import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
@@ -50,21 +51,13 @@ export function Home() {
           <Button variant="ghost" className="w-full justify-start font-semibold text-black bg-gray-100">
             话题分享
           </Button>
-          <Button variant="ghost" className="w-full justify-start text-gray-600">
-            AIGame demo展馆
-          </Button>
+          <Link to="/games" className="block">
+            <Button variant="ghost" className="w-full justify-start text-gray-600 gap-2">
+              <Gamepad2 className="w-4 h-4 text-purple-600" />
+              <span className="truncate whitespace-nowrap">AIGame demo展馆</span>
+            </Button>
+          </Link>
         </nav>
-
-        <div className="mt-8">
-          <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4 px-4">My Topics</h3>
-          <div className="space-y-1">
-            {topics.slice(0, 4).map(topic => (
-               <Button key={topic} variant="ghost" size="sm" className="w-full justify-start text-gray-600 font-normal">
-                 # {topic}
-               </Button>
-            ))}
-          </div>
-        </div>
       </aside>
 
       {/* Main Content - Feed */}
@@ -163,7 +156,12 @@ export function Home() {
             </div>
           </div>
         ) : (
-          <Feed mode={activeTab === 'hot' ? 'hot' : 'latest'} />
+          <>
+            <div className="md:hidden">
+              <PostComposer className="bg-white rounded-xl border border-gray-100 p-4 shadow-sm" />
+            </div>
+            <Feed mode={activeTab === 'hot' ? 'hot' : 'latest'} />
+          </>
         )}
       </section>
 
@@ -180,15 +178,7 @@ export function Home() {
           </div>
         </div>
 
-        <div className="bg-black text-white rounded-xl p-5 shadow-lg">
-          <h3 className="font-bold text-lg mb-2">AiGo Community</h3>
-          <p className="text-gray-300 text-sm mb-4">
-            A space for AI engineers to share practical insights, code, and benchmarks.
-          </p>
-          <Button className="w-full bg-white text-black hover:bg-gray-100 font-semibold">
-            Start Contributing
-          </Button>
-        </div>
+        <PostComposer />
         
         <footer className="text-xs text-gray-400 px-2">
           <div className="flex flex-wrap gap-x-4 gap-y-2">
