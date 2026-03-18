@@ -1,21 +1,56 @@
-import { Link } from 'react-router-dom';
+import { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { MessageSquare, ThumbsUp } from 'lucide-react';
-import { Post } from '../data/mock';
 import { Avatar } from './ui/Avatar';
 import { Badge } from './ui/Badge';
 import { Button } from './ui/Button';
 import { formatDistanceToNow } from 'date-fns';
+import { supabase } from '../lib/supabaseClient';
+import { useAuthStore } from '../stores/authStore';
 
 interface PostCardProps {
-  post: Post;
+  post: {
+    id: string;
+    author: {
+      id: string;
+      name: string;
+      handle: string;
+      avatar: string;
+    };
+    title: string;
+    description: string;
+    tags: string[];
+    likes: number;
+    commentsCount: number;
+    createdAt: string;
+    viewerHasLiked?: boolean;
+    isAiAssisted?: boolean;
+  };
 }
 
 export function PostCard({ post }: PostCardProps) {
+  const navigate = useNavigate();
+  const { user, openModal } = useAuthStore();
+  const [likes, setLikes] = useState(post.likes);
+  const [viewerHasLiked, setViewerHasLiked] = useState(Boolean(post.viewerHasLiked));
+  const [liking, setLiking] = useState(false);
+
   return (
     <Link to={`/post/${post.id}`} className="block">
       <article className="group relative flex gap-3 p-4 bg-white border border-gray-100 rounded-lg hover:shadow-sm hover:border-gray-200 transition-all duration-200">
         <div className="flex-shrink-0">
-          <Avatar src={post.author.avatar} alt={post.author.name} size="sm" />
+          <button
+            type="button"
+            className="rounded-full"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              navigate(`/user/${post.author.id}`);
+            }}
+            aria-label={`查看 ${post.author.name} 的主页`}
+          >
+            <Avatar src={post.author.avatar} alt={post.author.name} size="sm" />
+          </button>
         </div>
         
         <div className="flex-1 min-w-0">
@@ -50,9 +85,46 @@ export function PostCard({ post }: PostCardProps) {
             </div>
 
             <div className="flex items-center gap-2 text-gray-400">
-              <Button variant="ghost" size="sm" className="h-6 px-1.5 gap-1 text-gray-400 hover:text-gray-900">
+              <Button
+                variant="ghost"
+                size="sm"
+                className={viewerHasLiked ? 'h-6 px-1.5 gap-1 text-purple-600 hover:text-purple-700' : 'h-6 px-1.5 gap-1 text-gray-400 hover:text-gray-900'}
+                disabled={liking}
+                onClick={async (e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+
+                  if (!user) {
+                    openModal('signIn');
+                    return;
+                  }
+
+                  setLiking(true);
+                  try {
+                    if (viewerHasLiked) {
+                      const { error } = await supabase
+                        .from('post_likes')
+                        .delete()
+                        .eq('post_id', post.id)
+                        .eq('user_id', user.id);
+                      if (error) throw error;
+                      setViewerHasLiked(false);
+                      setLikes(v => Math.max(0, v - 1));
+                    } else {
+                      const { error } = await supabase.from('post_likes').insert({ post_id: post.id, user_id: user.id });
+                      if (error) throw error;
+                      setViewerHasLiked(true);
+                      setLikes(v => v + 1);
+                    }
+                  } catch {
+                    return;
+                  } finally {
+                    setLiking(false);
+                  }
+                }}
+              >
                 <ThumbsUp className="w-3 h-3" />
-                <span className="text-[10px] font-medium">{post.likes}</span>
+                <span className="text-[10px] font-medium">{likes}</span>
               </Button>
               <Button variant="ghost" size="sm" className="h-6 px-1.5 gap-1 text-gray-400 hover:text-gray-900">
                 <MessageSquare className="w-3 h-3" />

@@ -51,13 +51,7 @@ export function Home() {
             话题分享
           </Button>
           <Button variant="ghost" className="w-full justify-start text-gray-600">
-            游戏Demo展示区
-          </Button>
-          <Button variant="ghost" className="w-full justify-start text-gray-600">
-            Collections
-          </Button>
-          <Button variant="ghost" className="w-full justify-start text-gray-600">
-            Bookmarks
+            AIGame demo展馆
           </Button>
         </nav>
 
@@ -95,9 +89,9 @@ export function Home() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between gap-3">
                           <div className="flex items-center gap-3 min-w-0">
-                            <div className="w-8 h-8 rounded-full overflow-hidden bg-gray-200 flex-shrink-0">
+                            <Link to={`/user/${dev.author.id}`} className="w-8 h-8 rounded-full overflow-hidden bg-gray-200 flex-shrink-0 block">
                               <img src={dev.author.avatar} alt={dev.author.name} className="w-full h-full object-cover" />
-                            </div>
+                            </Link>
                             <div className="min-w-0">
                               <div className="flex items-center gap-2 min-w-0">
                                 <div className="font-semibold text-gray-900 truncate">{dev.author.name}</div>

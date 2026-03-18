@@ -1,11 +1,13 @@
 import { ThumbsUp, Users, Search } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { mockGames } from '../data/mock';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { Avatar } from '../components/ui/Avatar';
 
 export function GameGallery() {
+  const navigate = useNavigate();
+
   return (
     <div className="min-h-screen bg-[#F9FAFB]">
       <div className="container mx-auto px-4 py-6 max-w-7xl">
@@ -68,10 +70,19 @@ export function GameGallery() {
               <div className="p-4 flex flex-col z-10 bg-white relative flex-grow">
                 {/* Developer Info & Stats */}
                 <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    className="flex items-center gap-2 min-w-0"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      navigate(`/user/${game.author.id}`);
+                    }}
+                    aria-label={`查看 ${game.author.name} 的主页`}
+                  >
                     <Avatar src={game.author.avatar} alt={game.author.name} size="sm" className="w-6 h-6" />
                     <span className="text-xs text-gray-600 truncate font-medium">{game.author.name}</span>
-                  </div>
+                  </button>
                   <div className="flex items-center gap-3 text-[11px] text-gray-500">
                     <div className="flex items-center gap-1" title="Views">
                       <Users className="w-3.5 h-3.5" />

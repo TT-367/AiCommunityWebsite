@@ -56,13 +56,13 @@ export function GameDetail() {
             </div>
 
             <div className="flex items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
+              <Link to={`/user/${game.author.id}`} className="flex items-center gap-3 min-w-0">
                 <Avatar src={game.author.avatar} alt={game.author.name} size="md" />
-                <div>
-                  <div className="font-semibold text-gray-900">{game.author.name}</div>
-                  <div className="text-xs text-gray-500">{game.author.handle}</div>
+                <div className="min-w-0">
+                  <div className="font-semibold text-gray-900 truncate">{game.author.name}</div>
+                  <div className="text-xs text-gray-500 truncate">{game.author.handle}</div>
                 </div>
-              </div>
+              </Link>
 
               <div className="flex flex-wrap justify-end gap-2">
                 {game.tags.map(tag => (
@@ -78,4 +78,3 @@ export function GameDetail() {
     </div>
   );
 }
-

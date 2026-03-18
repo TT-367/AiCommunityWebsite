@@ -1,18 +1,80 @@
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft, FileText, Gamepad2, Heart } from 'lucide-react';
 import { mockGames, mockPosts } from '../data/mock';
 import { Avatar } from '../components/ui/Avatar';
 import { Button } from '../components/ui/Button';
+import { supabase } from '../lib/supabaseClient';
+
+type CountRow = { count: number };
+type RemotePostRow = { id: string; title: string; description: string | null; created_at: string; post_likes: CountRow[] };
 
 export function UserProfile() {
   const { id } = useParams<{ id: string }>();
   const authorId = id ?? '';
 
-  const posts = mockPosts.filter(p => p.author.id === authorId).sort((a, b) => b.likes - a.likes);
-  const games = mockGames.filter(g => g.author.id === authorId).sort((a, b) => b.likes - a.likes);
+  const [loading, setLoading] = useState(true);
+  const [profile, setProfile] = useState<{ id: string; display_name: string | null; avatar_url: string | null } | null>(null);
+  const [remotePosts, setRemotePosts] = useState<Array<{ id: string; title: string; description: string | null; created_at: string; likes: number }>>([]);
 
-  const author = posts[0]?.author ?? games[0]?.author;
-  const totalLikes = posts.reduce((sum, p) => sum + p.likes, 0) + games.reduce((sum, g) => sum + g.likes, 0);
+  const localPosts = useMemo(() => mockPosts.filter(p => p.author.id === authorId).sort((a, b) => b.likes - a.likes), [authorId]);
+  const games = useMemo(() => mockGames.filter(g => g.author.id === authorId).sort((a, b) => b.likes - a.likes), [authorId]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      setLoading(true);
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('id,display_name,avatar_url')
+        .eq('id', authorId)
+        .maybeSingle();
+
+      if (cancelled) return;
+      setProfile(profileData ?? null);
+
+      const { data: postsData } = await supabase
+        .from('posts')
+        .select('id,title,description,created_at,post_likes(count)')
+        .eq('author_id', authorId)
+        .order('created_at', { ascending: false })
+        .limit(50);
+
+      if (cancelled) return;
+      const mapped = ((postsData ?? []) as unknown as RemotePostRow[]).map((row) => ({
+        id: row.id,
+        title: String(row.title),
+        description: row.description ? String(row.description) : null,
+        created_at: String(row.created_at),
+        likes: row.post_likes?.[0]?.count ?? 0,
+      }));
+      setRemotePosts(mapped);
+      setLoading(false);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [authorId]);
+
+  const author = useMemo(() => {
+    if (profile) {
+      const name = profile.display_name ?? `User ${authorId.slice(0, 4)}`;
+      const avatar = profile.avatar_url ? profile.avatar_url : `https://api.dicebear.com/7.x/avataaars/svg?seed=${authorId}`;
+      return { id: authorId, name, handle: `@${authorId.slice(0, 6)}`, avatar };
+    }
+    return localPosts[0]?.author ?? games[0]?.author;
+  }, [authorId, games, localPosts, profile]);
+
+  const totalLikes = useMemo(() => {
+    const remoteLikes = remotePosts.reduce((sum, p) => sum + p.likes, 0);
+    const localLikes = localPosts.reduce((sum, p) => sum + p.likes, 0);
+    const gameLikes = games.reduce((sum, g) => sum + g.likes, 0);
+    return remoteLikes + localLikes + gameLikes;
+  }, [games, localPosts, remotePosts]);
+
+  const postsCount = remotePosts.length > 0 ? remotePosts.length : localPosts.length;
 
   if (!author) {
     return (
@@ -53,7 +115,7 @@ export function UserProfile() {
                     </div>
                     <div className="flex items-center gap-1">
                       <FileText className="w-4 h-4" />
-                      <span className="font-semibold text-gray-900">{posts.length}</span>
+                      <span className="font-semibold text-gray-900">{postsCount}</span>
                       <span className="text-gray-500">发帖</span>
                     </div>
                     <div className="flex items-center gap-1">
@@ -79,8 +141,22 @@ export function UserProfile() {
               <div className="text-xs text-gray-500 mt-1">按点赞排序</div>
             </div>
             <div className="divide-y divide-gray-50">
-              {posts.length > 0 ? (
-                posts.slice(0, 10).map(p => (
+              {loading ? (
+                <div className="px-5 py-6 text-sm text-gray-400">加载中...</div>
+              ) : remotePosts.length > 0 ? (
+                remotePosts.slice(0, 10).map(p => (
+                  <Link key={p.id} to={`/post/${p.id}`} className="block px-5 py-3 hover:bg-gray-50">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="text-sm font-semibold text-gray-900 line-clamp-1">{p.title}</div>
+                        <div className="text-xs text-gray-500 line-clamp-1 mt-0.5">{p.description ?? ''}</div>
+                      </div>
+                      <div className="text-xs text-gray-500 flex-shrink-0">👍 {p.likes.toLocaleString()}</div>
+                    </div>
+                  </Link>
+                ))
+              ) : localPosts.length > 0 ? (
+                localPosts.slice(0, 10).map(p => (
                   <Link key={p.id} to={`/post/${p.id}`} className="block px-5 py-3 hover:bg-gray-50">
                     <div className="flex items-center justify-between gap-3">
                       <div className="min-w-0">

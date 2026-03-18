@@ -2,8 +2,21 @@ import { Bell } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Button } from './ui/Button';
 import { Avatar } from './ui/Avatar';
+import { useAuthStore } from '../stores/authStore';
 
 export function Header() {
+  const { user, openModal, signOut } = useAuthStore();
+  const avatarSrc = user?.user_metadata?.avatar_url
+    ? String(user.user_metadata.avatar_url)
+    : user
+      ? `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.id}`
+      : 'https://api.dicebear.com/7.x/avataaars/svg?seed=Guest';
+  const displayName = user?.user_metadata?.display_name
+    ? String(user.user_metadata.display_name)
+    : user?.email
+      ? user.email.split('@')[0]
+      : 'User';
+
   return (
     <header className="sticky top-0 z-50 w-full bg-white border-b border-gray-100 shadow-sm supports-[backdrop-filter]:bg-white/80 backdrop-blur-md">
       <div className="container mx-auto px-4 h-16 flex items-center justify-between">
@@ -29,7 +42,20 @@ export function Header() {
           <Button variant="ghost" size="icon" className="text-gray-500">
             <Bell className="w-5 h-5" />
           </Button>
-          <Avatar src="https://api.dicebear.com/7.x/avataaars/svg?seed=User" alt="User" size="sm" />
+          {user ? (
+            <div className="flex items-center gap-2">
+              <Link to={`/user/${user.id}`} className="block">
+                <Avatar src={avatarSrc} alt={displayName} size="sm" />
+              </Link>
+              <Button variant="ghost" size="sm" className="text-gray-600" onClick={() => signOut()}>
+                退出
+              </Button>
+            </div>
+          ) : (
+            <Button className="h-9" onClick={() => openModal('signIn')}>
+              登录
+            </Button>
+          )}
         </div>
       </div>
     </header>
