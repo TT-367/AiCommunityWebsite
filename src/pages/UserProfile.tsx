@@ -78,10 +78,10 @@ export function UserProfile() {
 
   if (!author) {
     return (
-      <div className="min-h-screen bg-[#F9FAFB]">
+      <div className="min-h-screen bg-background text-foreground">
         <div className="container mx-auto px-4 py-12 text-center max-w-4xl">
-          <h2 className="text-2xl font-bold text-gray-900">User not found</h2>
-          <Link to="/" className="text-blue-600 hover:underline mt-4 inline-block">
+          <h2 className="text-2xl font-bold text-foreground">User not found</h2>
+          <Link to="/" className="text-primary hover:underline mt-4 inline-block">
             Return to Home
           </Link>
         </div>
@@ -90,38 +90,38 @@ export function UserProfile() {
   }
 
   return (
-    <div className="min-h-screen bg-[#F9FAFB]">
+    <div className="min-h-screen bg-background text-foreground">
       <div className="container mx-auto px-4 py-6 max-w-4xl">
-        <div className="sticky top-[4.5rem] z-40 -mx-4 px-4 py-2 bg-[#F9FAFB]/90 supports-[backdrop-filter]:bg-[#F9FAFB]/70 backdrop-blur border-b border-gray-100">
-          <Link to="/" className="inline-flex items-center text-sm text-gray-500 hover:text-gray-900 transition-colors">
+        <div className="sticky top-[4.5rem] z-40 -mx-4 px-4 py-2 bg-background/90 supports-[backdrop-filter]:bg-background/70 backdrop-blur border-b border-border">
+          <Link to="/" className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground transition-colors">
             <ArrowLeft className="w-4 h-4 mr-1" />
             Back
           </Link>
         </div>
 
-        <div className="mt-6 bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+        <div className="mt-6 bg-surface rounded-xl border border-border shadow-e1 overflow-hidden">
           <div className="p-6 md:p-8">
             <div className="flex items-start justify-between gap-4">
               <div className="flex items-center gap-4 min-w-0">
                 <Avatar src={author.avatar} alt={author.name} size="lg" />
                 <div className="min-w-0">
-                  <div className="text-xl font-bold text-gray-900 truncate">{author.name}</div>
-                  <div className="text-sm text-gray-500 truncate">{author.handle}</div>
-                  <div className="mt-3 flex items-center gap-4 text-sm text-gray-600">
+                  <div className="text-xl font-bold text-foreground truncate">{author.name}</div>
+                  <div className="text-sm text-muted-foreground truncate">{author.handle}</div>
+                  <div className="mt-3 flex items-center gap-4 text-sm text-muted-foreground">
                     <div className="flex items-center gap-1">
                       <Heart className="w-4 h-4" />
-                      <span className="font-semibold text-gray-900">{totalLikes.toLocaleString()}</span>
-                      <span className="text-gray-500">获赞</span>
+                      <span className="font-semibold text-foreground">{totalLikes.toLocaleString()}</span>
+                      <span className="text-muted-foreground">获赞</span>
                     </div>
                     <div className="flex items-center gap-1">
                       <FileText className="w-4 h-4" />
-                      <span className="font-semibold text-gray-900">{postsCount}</span>
-                      <span className="text-gray-500">发帖</span>
+                      <span className="font-semibold text-foreground">{postsCount}</span>
+                      <span className="text-muted-foreground">发帖</span>
                     </div>
                     <div className="flex items-center gap-1">
                       <Gamepad2 className="w-4 h-4" />
-                      <span className="font-semibold text-gray-900">{games.length}</span>
-                      <span className="text-gray-500">游戏</span>
+                      <span className="font-semibold text-foreground">{games.length}</span>
+                      <span className="text-muted-foreground">游戏</span>
                     </div>
                   </div>
                 </div>
@@ -135,64 +135,64 @@ export function UserProfile() {
         </div>
 
         <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-            <div className="px-5 py-4 border-b border-gray-100">
-              <div className="font-bold text-gray-900">帖子</div>
-              <div className="text-xs text-gray-500 mt-1">按点赞排序</div>
+          <div className="bg-surface rounded-xl border border-border shadow-e1 overflow-hidden">
+            <div className="px-5 py-4 border-b border-border">
+              <div className="font-bold text-foreground">帖子</div>
+              <div className="text-xs text-muted-foreground mt-1">按点赞排序</div>
             </div>
-            <div className="divide-y divide-gray-50">
+            <div className="divide-y divide-border">
               {loading ? (
-                <div className="px-5 py-6 text-sm text-gray-400">加载中...</div>
+                <div className="px-5 py-6 text-sm text-muted-foreground/70">加载中...</div>
               ) : remotePosts.length > 0 ? (
                 remotePosts.slice(0, 10).map(p => (
-                  <Link key={p.id} to={`/post/${p.id}`} className="block px-5 py-3 hover:bg-gray-50">
+                  <Link key={p.id} to={`/post/${p.id}`} className="block px-5 py-3 hover:bg-surface-2">
                     <div className="flex items-center justify-between gap-3">
                       <div className="min-w-0">
-                        <div className="text-sm font-semibold text-gray-900 line-clamp-1">{p.title}</div>
-                        <div className="text-xs text-gray-500 line-clamp-1 mt-0.5">{p.description ?? ''}</div>
+                        <div className="text-sm font-semibold text-foreground line-clamp-1">{p.title}</div>
+                        <div className="text-xs text-muted-foreground line-clamp-1 mt-0.5">{p.description ?? ''}</div>
                       </div>
-                      <div className="text-xs text-gray-500 flex-shrink-0">👍 {p.likes.toLocaleString()}</div>
+                      <div className="text-xs text-muted-foreground flex-shrink-0">👍 {p.likes.toLocaleString()}</div>
                     </div>
                   </Link>
                 ))
               ) : localPosts.length > 0 ? (
                 localPosts.slice(0, 10).map(p => (
-                  <Link key={p.id} to={`/post/${p.id}`} className="block px-5 py-3 hover:bg-gray-50">
+                  <Link key={p.id} to={`/post/${p.id}`} className="block px-5 py-3 hover:bg-surface-2">
                     <div className="flex items-center justify-between gap-3">
                       <div className="min-w-0">
-                        <div className="text-sm font-semibold text-gray-900 line-clamp-1">{p.title}</div>
-                        <div className="text-xs text-gray-500 line-clamp-1 mt-0.5">{p.description}</div>
+                        <div className="text-sm font-semibold text-foreground line-clamp-1">{p.title}</div>
+                        <div className="text-xs text-muted-foreground line-clamp-1 mt-0.5">{p.description}</div>
                       </div>
-                      <div className="text-xs text-gray-500 flex-shrink-0">👍 {p.likes.toLocaleString()}</div>
+                      <div className="text-xs text-muted-foreground flex-shrink-0">👍 {p.likes.toLocaleString()}</div>
                     </div>
                   </Link>
                 ))
               ) : (
-                <div className="px-5 py-6 text-sm text-gray-400">暂无帖子</div>
+                <div className="px-5 py-6 text-sm text-muted-foreground/70">暂无帖子</div>
               )}
             </div>
           </div>
 
-          <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-            <div className="px-5 py-4 border-b border-gray-100">
-              <div className="font-bold text-gray-900">游戏项目</div>
-              <div className="text-xs text-gray-500 mt-1">按点赞排序</div>
+          <div className="bg-surface rounded-xl border border-border shadow-e1 overflow-hidden">
+            <div className="px-5 py-4 border-b border-border">
+              <div className="font-bold text-foreground">游戏项目</div>
+              <div className="text-xs text-muted-foreground mt-1">按点赞排序</div>
             </div>
-            <div className="divide-y divide-gray-50">
+            <div className="divide-y divide-border">
               {games.length > 0 ? (
                 games.slice(0, 10).map(g => (
-                  <Link key={g.id} to={`/games/${g.id}`} className="block px-5 py-3 hover:bg-gray-50">
+                  <Link key={g.id} to={`/games/${g.id}`} className="block px-5 py-3 hover:bg-surface-2">
                     <div className="flex items-center justify-between gap-3">
                       <div className="min-w-0">
-                        <div className="text-sm font-semibold text-gray-900 line-clamp-1">{g.title}</div>
-                        <div className="text-xs text-gray-500 line-clamp-1 mt-0.5">{g.description}</div>
+                        <div className="text-sm font-semibold text-foreground line-clamp-1">{g.title}</div>
+                        <div className="text-xs text-muted-foreground line-clamp-1 mt-0.5">{g.description}</div>
                       </div>
-                      <div className="text-xs text-gray-500 flex-shrink-0">👍 {g.likes.toLocaleString()}</div>
+                      <div className="text-xs text-muted-foreground flex-shrink-0">👍 {g.likes.toLocaleString()}</div>
                     </div>
                   </Link>
                 ))
               ) : (
-                <div className="px-5 py-6 text-sm text-gray-400">暂无游戏</div>
+                <div className="px-5 py-6 text-sm text-muted-foreground/70">暂无游戏</div>
               )}
             </div>
           </div>

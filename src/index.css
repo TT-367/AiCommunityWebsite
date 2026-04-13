@@ -2,13 +2,221 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer components {
+  .ui-display {
+    font-family: "SF Pro Display", "Segoe UI Variable Display", "Segoe UI Variable Text", "Segoe UI", "HarmonyOS Sans SC", "HarmonyOS Sans",
+      "MiSans", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei UI", "Microsoft YaHei", "Noto Sans SC", "Source Han Sans SC", "Inter var",
+      Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Helvetica, Arial;
+    letter-spacing: -0.01em;
+  }
+
+  .ui-panel {
+    @apply rounded-xl border border-border bg-surface text-foreground shadow-e1;
+  }
+
+  .ui-panel-muted {
+    @apply rounded-xl border border-border bg-surface-2/55 text-foreground shadow-e1;
+  }
+
+  .ui-panel-sticky {
+    height: calc(100vh - 7rem);
+    height: calc(100dvh - 7rem);
+    min-height: 560px;
+  }
+
+  @media (min-width: 1024px) {
+    .ui-panel-sticky {
+      position: sticky;
+      top: 6rem;
+    }
+  }
+
+  .ui-panel-tall {
+    max-height: calc(100vh - 7rem);
+    max-height: calc(100dvh - 7rem);
+  }
+
+  .ui-panel-header {
+    @apply shrink-0 border-b border-border bg-surface;
+  }
+
+  .ui-panel-body {
+    @apply flex-1 min-h-0;
+  }
+
+  .ui-drawer {
+    @apply w-[92vw] max-w-drawer shadow-e3;
+  }
+
+  .ui-cta-card {
+    @apply w-[92vw] max-w-card-lg h-[52vh] max-h-card-tall rounded-xl border border-border bg-surface shadow-e1;
+    @apply hover:shadow-e2 hover:border-border-strong transition-all duration-200;
+  }
+
+  .ui-cta-card-sm {
+    @apply w-[92%] max-w-card-md h-36 rounded-xl border border-border bg-surface/90 backdrop-blur-sm shadow-e2;
+    @apply hover:shadow-e3 hover:border-border-strong transition-all duration-200;
+  }
+
+  .ui-popover {
+    @apply rounded-xl border border-border bg-surface shadow-e2;
+  }
+
+  .ui-toast-stack {
+    @apply w-[calc(100vw-2rem)] max-w-card-md;
+  }
+
+  .ui-float-dialog {
+    @apply max-h-[calc(100vh-7rem)] md:max-w-[calc(100vw-2rem)] md:max-h-[calc(100vh-6rem)];
+  }
+
+  .ui-bubble-user {
+    @apply w-[92%] max-w-card-md;
+  }
+
+  .ui-bubble-ai {
+    @apply w-[92%] max-w-card-lg;
+  }
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
 :root {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+  font-family: ui-rounded, "SF Pro Rounded", "SF Pro Display", "Segoe UI Variable Display", "Segoe UI Variable Text", "Segoe UI",
+    "HarmonyOS Sans SC", "HarmonyOS Sans", "MiSans", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei UI", "Microsoft YaHei",
+    "Noto Sans SC", "Source Han Sans SC", "Inter var", Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+    Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
   line-height: 1.5;
-  font-weight: 400;
+  font-weight: 450;
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+
+  --background: 7 7 9;
+  --foreground: 218 218 224;
+  --foreground-soft: 206 202 194;
+
+  --surface: 14 14 16;
+  --surface-2: 22 22 24;
+
+  --muted: 10 10 12;
+  --muted-foreground: 160 160 168;
+
+  --border: 38 38 44;
+  --border-strong: 62 62 72;
+  --input: 62 62 72;
+
+  --primary: 236 236 240;
+  --primary-foreground: 10 10 12;
+
+  --accent: 28 28 32;
+  --accent-foreground: 245 245 246;
+
+  --destructive: 210 210 216;
+  --destructive-foreground: 10 10 12;
+
+  --success: 200 200 208;
+  --warning: 200 200 208;
+  --info: 200 200 208;
+
+  --ring: 210 210 216;
+
+  --brand-1: 235 235 238;
+  --brand-2: 195 195 204;
+  --brand-3: 150 150 160;
+
+  --radius-sm: 0.375rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.25rem;
+
+  --shadow-1: 0 1px 2px 0 rgb(0 0 0 / 0.28);
+  --shadow-2: 0 10px 30px -14px rgb(0 0 0 / 0.65);
+  --shadow-3: 0 22px 60px -18px rgb(0 0 0 / 0.72);
+}
+
+.light {
+  --background: 250 250 251;
+  --foreground: 12 12 14;
+
+  --surface: 255 255 255;
+  --surface-2: 245 245 246;
+
+  --muted: 250 250 251;
+  --muted-foreground: 112 112 120;
+
+  --border: 232 232 236;
+  --border-strong: 214 214 220;
+  --input: 214 214 220;
+
+  --primary: 12 12 14;
+  --primary-foreground: 255 255 255;
+
+  --accent: 242 242 244;
+  --accent-foreground: 12 12 14;
+
+  --destructive: 24 24 28;
+  --destructive-foreground: 255 255 255;
+
+  --success: 32 32 36;
+  --warning: 32 32 36;
+  --info: 32 32 36;
+
+  --ring: 12 12 14;
+
+  --brand-1: 32 32 36;
+  --brand-2: 64 64 72;
+  --brand-3: 128 128 140;
+
+  --shadow-1: 0 1px 2px 0 rgb(0 0 0 / 0.06);
+  --shadow-2: 0 14px 40px -18px rgb(0 0 0 / 0.18);
+  --shadow-3: 0 28px 70px -22px rgb(0 0 0 / 0.22);
+}
+
+.dark {
+  --background: 7 7 9;
+  --foreground: 218 218 224;
+  --foreground-soft: 206 202 194;
+
+  --surface: 14 14 16;
+  --surface-2: 22 22 24;
+
+  --muted: 10 10 12;
+  --muted-foreground: 160 160 168;
+
+  --border: 38 38 44;
+  --border-strong: 62 62 72;
+  --input: 62 62 72;
+
+  --primary: 236 236 240;
+  --primary-foreground: 10 10 12;
+
+  --accent: 28 28 32;
+  --accent-foreground: 245 245 246;
+
+  --destructive: 210 210 216;
+  --destructive-foreground: 10 10 12;
+
+  --success: 200 200 208;
+  --warning: 200 200 208;
+  --info: 200 200 208;
+
+  --ring: 210 210 216;
+
+  --brand-1: 235 235 238;
+  --brand-2: 195 195 204;
+  --brand-3: 150 150 160;
+
+  --shadow-1: 0 1px 2px 0 rgb(0 0 0 / 0.28);
+  --shadow-2: 0 10px 30px -14px rgb(0 0 0 / 0.65);
+  --shadow-3: 0 22px 60px -18px rgb(0 0 0 / 0.72);
 }

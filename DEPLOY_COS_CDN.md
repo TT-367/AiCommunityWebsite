@@ -1,0 +1,32 @@
+# 发布到 COS + CDN 的固定流程
+
+- 构建
+  - 设置 .env.production：VITE_BASE_URL 与托管路径一致（根：/；子目录示例：/aigo/）
+  - Mock 阶段：VITE_FORCE_MOCK_POSTS=true；切到真实数据时改为 false
+  - 运行：npm run build 或 node node_modules/vite/bin/vite.js build
+- 上传
+  - 将 dist 全量上传到目标桶根目录（index.html、assets/**、tool-logos/**、favicon.svg 等）
+  - COS 静态网站：开启；默认首页=index.html；默认 404=index.html
+  - 对象元数据（关键）：
+    - index.html → Content-Type: text/html
+    - .js → text/javascript；.css → text/css；.svg → image/svg+xml
+    - 不设置 Content-Disposition: attachment
+- CDN 回源
+  - 回源域名：COS 静态网站域（cos-website.*.myqcloud.com），不是 cos.*.myqcloud.com
+  - 回源路径：根目录
+  - 响应头改写：回源跟随（不要覆盖 Content-Type）
+- 刷新缓存
+  - 生成刷新列表：node scripts/generate_cdn_purge_list.mjs --base https://你的域名[/子目录]
+  - 将生成的 URL 粘贴到 CDN“URL 刷新”，至少包含：
+    - /index.html
+    - /assets/index-*.js
+    - /assets/index-*.css
+  - 哈希资源可长期缓存；正常发布只需刷新 /index.html
+- 验证
+  - 隐身窗口访问首页；页面正常渲染
+  - curl -I https://你的域名/index.html → Content-Type 应为 text/html；Last-Modified 为最新
+- 故障快速判断
+  - 页面没更新：刷新 CDN 的 /index.html
+  - 空白/404：旧哈希被引用；刷新 CDN 的新哈希 /assets/index-*.js/.css
+  - 自动下载 HTML：index.html 的 Content-Type 错或有 Content-Disposition: attachment；改回 text/html 并删除附件头
+

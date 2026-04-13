@@ -6,7 +6,12 @@ import { PostComposer } from './PostComposer';
 export function FloatingPostButton() {
   const [open, setOpen] = useState(false);
   const location = useLocation();
-  const shouldShow = location.pathname === '/';
+  const pathname = location.pathname;
+  const shouldShow =
+    pathname === '/'
+    || pathname === '/games'
+    || pathname.startsWith('/games/')
+    || pathname.startsWith('/skills/');
 
   useEffect(() => {
     if (!shouldShow) setOpen(false);
@@ -31,10 +36,14 @@ export function FloatingPostButton() {
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className="group flex items-center gap-2 rounded-full bg-black text-white shadow-xl px-3 py-3 md:px-4 transition-colors hover:bg-gray-800"
+          className="group flex items-center gap-2 rounded-full text-primary-foreground shadow-e3 px-3 py-3 md:px-4 transition-transform hover:-translate-y-[1px]"
+          style={{
+            backgroundImage:
+              'linear-gradient(135deg, rgb(var(--brand-1)), rgb(var(--brand-2)), rgb(var(--brand-3)))',
+          }}
           title="发表新帖子"
         >
-          <div className="bg-white/10 p-2 rounded-full flex-shrink-0">
+          <div className="bg-primary/15 p-2 rounded-full flex-shrink-0">
             <PencilLine className="w-5 h-5" />
           </div>
           <span className="text-sm font-semibold whitespace-nowrap">发帖</span>
@@ -47,22 +56,22 @@ export function FloatingPostButton() {
           onMouseDown={() => setOpen(false)}
           aria-hidden="true"
         >
-          <div className="absolute inset-0 bg-black/10" aria-hidden="true" />
+          <div className="absolute inset-0 bg-background/60 backdrop-blur-sm" aria-hidden="true" />
 
           <div
-            className="fixed left-4 right-4 top-24 bottom-4 max-h-[calc(100vh-7rem)] overflow-auto md:left-auto md:top-auto md:bottom-20 md:right-4 md:w-[420px] md:max-w-[calc(100vw-2rem)] md:max-h-[calc(100vh-6rem)]"
+            className="fixed left-4 right-4 top-24 bottom-4 ui-float-dialog overflow-auto md:left-auto md:top-auto md:bottom-20 md:right-4 md:w-card-md"
             onMouseDown={(e) => e.stopPropagation()}
             role="dialog"
             aria-modal="true"
             aria-label="发表新帖子"
           >
             <PostComposer
-              className="bg-white rounded-xl border border-gray-100 p-4 shadow-2xl"
+              className="bg-surface rounded-xl border border-border p-4 shadow-e3"
               headerRight={(
                 <button
                   type="button"
                   onClick={() => setOpen(false)}
-                  className="inline-flex items-center justify-center rounded-md h-9 w-9 hover:bg-gray-100 text-gray-700"
+                  className="inline-flex items-center justify-center rounded-md h-9 w-9 hover:bg-surface-2 text-muted-foreground hover:text-foreground"
                   title="关闭"
                 >
                   <X className="w-5 h-5" />

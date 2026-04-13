@@ -16,11 +16,11 @@ export function AuthModal() {
   if (!modalOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 px-4">
-      <div className="w-full max-w-md bg-white rounded-xl border border-gray-100 shadow-xl overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-          <div className="text-base font-bold text-gray-900">{title}</div>
-          <button type="button" onClick={closeModal} className="text-gray-400 hover:text-gray-700">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-background/70 backdrop-blur-sm px-4">
+      <div className="w-full max-w-md bg-surface rounded-xl border border-border shadow-e3 overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+          <div className="text-base font-bold text-foreground">{title}</div>
+          <button type="button" onClick={closeModal} className="text-muted-foreground hover:text-foreground">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -47,11 +47,11 @@ export function AuthModal() {
         >
           {mode === 'signUp' && (
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">昵称</label>
+              <label className="block text-xs font-medium text-muted-foreground mb-1">昵称</label>
               <input
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
-                className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500"
+                className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                 placeholder="如：Alex"
                 autoComplete="nickname"
               />
@@ -59,12 +59,12 @@ export function AuthModal() {
           )}
 
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">邮箱</label>
+            <label className="block text-xs font-medium text-muted-foreground mb-1">邮箱</label>
             <input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500"
+              className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
               placeholder="you@example.com"
               autoComplete="email"
               required
@@ -72,12 +72,12 @@ export function AuthModal() {
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">密码</label>
+            <label className="block text-xs font-medium text-muted-foreground mb-1">密码</label>
             <input
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500"
+              className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
               placeholder="至少 6 位"
               autoComplete={mode === 'signIn' ? 'current-password' : 'new-password'}
               required
@@ -85,19 +85,19 @@ export function AuthModal() {
             />
           </div>
 
-          {error && <div className="text-sm text-red-600">{error}</div>}
+          {error && <div className="text-sm text-destructive">{error}</div>}
 
           <Button className="w-full" disabled={submitting}>
             {submitting ? '处理中...' : title}
           </Button>
 
-          <div className="text-xs text-gray-500 text-center">
+          <div className="text-xs text-muted-foreground text-center">
             {mode === 'signIn' ? (
-              <button type="button" className="text-purple-600 hover:text-purple-700" onClick={() => setMode('signUp')}>
+              <button type="button" className="text-primary hover:text-primary" onClick={() => setMode('signUp')}>
                 没有账号？去注册
               </button>
             ) : (
-              <button type="button" className="text-purple-600 hover:text-purple-700" onClick={() => setMode('signIn')}>
+              <button type="button" className="text-primary hover:text-primary" onClick={() => setMode('signIn')}>
                 已有账号？去登录
               </button>
             )}
@@ -107,4 +107,3 @@ export function AuthModal() {
     </div>
   );
 }
-

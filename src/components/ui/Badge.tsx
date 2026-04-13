@@ -1,16 +1,18 @@
 import { cn } from "../../lib/utils";
+import type React from "react";
 
-interface BadgeProps {
+interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
   children: React.ReactNode;
-  variant?: 'default' | 'outline' | 'secondary';
+  variant?: 'default' | 'outline' | 'secondary' | 'destructive';
   className?: string;
 }
 
-export function Badge({ children, variant = 'default', className }: BadgeProps) {
+export function Badge({ children, variant = 'default', className, ...props }: BadgeProps) {
   const variants = {
-    default: 'bg-black text-white hover:bg-gray-800',
-    outline: 'border border-gray-200 text-gray-800 hover:bg-gray-50',
-    secondary: 'bg-gray-100 text-gray-800 hover:bg-gray-200',
+    default: 'bg-primary text-primary-foreground hover:bg-primary/90',
+    outline: 'border border-border-strong text-foreground hover:bg-accent',
+    secondary: 'bg-accent text-accent-foreground hover:bg-accent/80',
+    destructive: 'bg-destructive text-destructive-foreground hover:bg-destructive/90',
   };
 
   return (
@@ -18,7 +20,7 @@ export function Badge({ children, variant = 'default', className }: BadgeProps) 
       "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium transition-colors",
       variants[variant],
       className
-    )}>
+    )} {...props}>
       {children}
     </span>
   );

@@ -11,24 +11,24 @@ export function FloatingGameButton() {
       {isGamesSection ? (
         <button 
           onClick={() => navigate(-1)}
-          className="group flex items-center gap-2 bg-white border border-gray-200 shadow-xl py-3 px-3 rounded-xl transition-colors"
+          className="group flex items-center gap-2 bg-surface border border-border shadow-e3 py-3 px-3 rounded-xl transition-colors"
           title="返回"
         >
-          <div className="bg-gray-100 p-2 rounded-lg group-hover:bg-gray-600 group-hover:text-white transition-colors duration-300 flex-shrink-0">
-            <ArrowLeft className="w-6 h-6 text-gray-600 group-hover:text-white" />
+          <div className="bg-surface-2 p-2 rounded-lg group-hover:bg-primary group-hover:text-primary-foreground transition-colors duration-300 flex-shrink-0">
+            <ArrowLeft className="w-6 h-6 text-muted-foreground group-hover:text-primary-foreground" />
           </div>
-          <span className="text-sm font-bold text-gray-900 whitespace-nowrap">返回</span>
+          <span className="text-sm font-bold text-foreground whitespace-nowrap">返回</span>
         </button>
       ) : (
         <Link 
           to="/games"
-          className="group flex items-center gap-2 bg-white border border-gray-200 shadow-xl py-3 px-3 rounded-xl transition-colors"
+          className="group flex items-center gap-2 bg-surface border border-border shadow-e3 py-3 px-3 rounded-xl transition-colors"
           title="AIGame 展馆"
         >
-          <div className="bg-purple-100 p-2 rounded-lg group-hover:bg-purple-600 group-hover:text-white transition-colors duration-300 flex-shrink-0">
-            <Gamepad2 className="w-6 h-6 text-purple-600 group-hover:text-white" />
+          <div className="bg-primary/15 p-2 rounded-lg group-hover:bg-primary group-hover:text-primary-foreground transition-colors duration-300 flex-shrink-0">
+            <Gamepad2 className="w-6 h-6 text-primary group-hover:text-primary-foreground" />
           </div>
-          <span className="text-sm font-bold text-gray-900 whitespace-nowrap">AIGame</span>
+          <span className="text-sm font-bold text-foreground whitespace-nowrap">AIGame</span>
         </Link>
       )}
     </div>

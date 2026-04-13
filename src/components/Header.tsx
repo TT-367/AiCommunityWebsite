@@ -1,4 +1,3 @@
-import { Bell } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Button } from './ui/Button';
 import { Avatar } from './ui/Avatar';
@@ -18,43 +17,55 @@ export function Header() {
       : 'User';
 
   return (
-    <header className="sticky top-0 z-50 w-full bg-white border-b border-gray-100 shadow-sm supports-[backdrop-filter]:bg-white/80 backdrop-blur-md">
-      <div className="container mx-auto px-4 h-16 flex items-center justify-between">
+    <header className="sticky top-0 z-50 w-full bg-surface border-b border-border shadow-e1 supports-[backdrop-filter]:bg-surface/80 backdrop-blur-md">
+      <div className="w-full px-4 sm:px-6 lg:px-14 2xl:px-20 h-14 flex items-center justify-between">
         <div className="flex items-center gap-8">
-          <Link to="/" className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-black rounded-xl flex items-center justify-center shadow-md transform transition hover:scale-105">
-              <span className="text-white font-black text-xl tracking-tighter">Ai</span>
-            </div>
-            <div className="flex flex-col">
-              <span className="text-xl font-bold text-gray-900 tracking-tight">AiGo</span>
-              <span className="text-[10px] text-gray-400 font-medium tracking-wide">AI游戏开发论坛</span>
-            </div>
+          <Link to="/" className="flex flex-col leading-tight mr-2">
+            <span className="text-xl font-bold text-foreground tracking-tight">AiGo</span>
+            <span className="text-[10px] text-muted-foreground font-medium tracking-wide hidden lg:block mt-0.5">一站式游戏开发平台</span>
           </Link>
           
-          <nav className="hidden md:flex items-center gap-1">
-            <a href="#" className="hover:text-black transition-colors">Discover</a>
-            <a href="#" className="hover:text-black transition-colors">Topics</a>
-            <a href="#" className="hover:text-black transition-colors">Collections</a>
+          <nav className="hidden md:flex items-center gap-2.5 ml-4">
+            <Link to="/?tab=hot" className="h-8 px-4 rounded-full border border-border/40 bg-transparent text-[13px] font-medium text-muted-foreground hover:text-foreground hover:border-border/80 hover:bg-surface-2/40 transition-all flex items-center justify-center">
+              开发者社区
+            </Link>
+            <Link to="/assets" className="h-8 px-4 rounded-full border border-border/40 bg-transparent text-[13px] font-medium text-muted-foreground hover:text-foreground hover:border-border/80 hover:bg-surface-2/40 transition-all flex items-center justify-center">
+              资产商店
+            </Link>
+            <Link to="/project-space" className="h-8 px-4 rounded-full border border-border/40 bg-transparent text-[13px] font-medium text-muted-foreground hover:text-foreground hover:border-border/80 hover:bg-surface-2/40 transition-all flex items-center justify-center">
+              工作空间
+            </Link>
           </nav>
         </div>
 
-        <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" className="text-gray-500">
-            <Bell className="w-5 h-5" />
-          </Button>
+        <div className="flex items-center gap-4">
+          <div className="hidden md:flex items-center gap-2.5">
+            <Link
+              to="/events"
+              className="h-8 px-4 rounded-full border border-border/80 bg-surface-2/40 text-[13px] font-medium text-foreground transition-all flex items-center justify-center hover:bg-surface-2"
+            >
+              最新活动
+            </Link>
+            <button className="h-8 px-4 rounded-full border border-border/40 bg-transparent text-[13px] font-medium text-muted-foreground hover:text-foreground hover:border-border/80 hover:bg-surface-2/40 transition-all flex items-center justify-center cursor-default">
+              价格方案
+            </button>
+          </div>
           {user ? (
             <div className="flex items-center gap-2">
               <Link to={`/user/${user.id}`} className="block">
                 <Avatar src={avatarSrc} alt={displayName} size="sm" />
               </Link>
-              <Button variant="ghost" size="sm" className="text-gray-600" onClick={() => signOut()}>
+              <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground" onClick={() => signOut()}>
                 退出
               </Button>
             </div>
           ) : (
-            <Button className="h-9" onClick={() => openModal('signIn')}>
-              登录
-            </Button>
+            <button
+              className="relative h-7 rounded-full px-3.5 text-[12px] font-semibold text-foreground shadow-e2 overflow-hidden border border-border/60 bg-[linear-gradient(180deg,#3b82f6_0%,#2563eb_55%,#1d4ed8_100%)] hover:bg-[linear-gradient(180deg,#4f8ff7_0%,#2f73f0_55%,#2156de_100%)] before:absolute before:inset-0 before:pointer-events-none before:bg-[radial-gradient(120px_circle_at_30%_20%,rgba(255,255,255,0.35),transparent_60%)] before:opacity-70 transition-all transform hover:scale-[1.02] active:scale-[0.98]"
+              onClick={() => openModal('signIn')}
+            >
+              免费使用
+            </button>
           )}
         </div>
       </div>

@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>AiGo 论坛链路图</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        background: #0b0b0d;
+        color: #dfe0e5;
+        font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", Arial;
+      }
+      .wrap {
+        padding: 24px;
+      }
+      .tip {
+        margin: 0 0 16px;
+        opacity: 0.8;
+        font-size: 14px;
+      }
+      .card {
+        border: 1px solid #2a2a30;
+        border-radius: 16px;
+        background: #121216;
+        padding: 16px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <p class="tip">打开后可在浏览器中“打印/另存为 PDF”，或用开发者工具复制 SVG 节点导出。</p>
+      <div class="card">
+        <div class="mermaid">
+flowchart LR
+
+  subgraph Global[全站入口与全局导航]
+    H[Header 导航\n- Logo\n- 开发者社区\n- 资产商店\n- 最新活动\n- 用户中心]
+    FAB[浮动发帖按钮\n(仅 /, /games, /games/:id, /skills/:id)]
+  end
+
+  subgraph Home[首页 /（三种模式）]
+    HOME[/ /]
+    HUB[项目 Hub 视图\n无 project、无 tab]
+    TAB[社区 Tab 视图\n/?tab=hot|latest|skills|games\n可选：tags,q]
+    WF[工作流视图\n/?project=:projectId\n可选：stage=:stageId]
+    HOME --> HUB
+    HOME --> TAB
+    HOME --> WF
+  end
+
+  subgraph HubSections[首页 · 项目 Hub 主要入口]
+    HUB_EVENTS[活动 Banner\n(点击进入活动页)]
+    HUB_QUICK[快速开始\n- 创建新项目\n- 我的资产库]
+    HUB_TPL[模板库\n(推荐 + 查看全部)]
+    HUB_GAMES[游戏空间\n(卡片 + 查看全部)]
+  end
+
+  subgraph Community[开发者社区（内容链路）]
+    FEED[Feed 帖子流\n(tab=hot/latest)]
+    POST[/post/:id\n帖子详情]
+    USER[/user/:id\n用户主页]
+  end
+
+  subgraph SkillsTools[技能 / 工具链]
+    SKILL_MARKET[技能市场\n(tab=skills)]
+    SKILL[/skills/:id\n技能详情]
+    TOOLCHAIN[/toolchain\n工具链页]
+  end
+
+  subgraph Games[游戏相关]
+    GALLERY[/games\n游戏广场]
+    GAME[/games/:id\n游戏详情]
+  end
+
+  subgraph Assets[资产与模板]
+    STORE[/assets\n资产商店/模板库]
+    MYASSETS[/my-assets\n我的资产库（按项目）]
+  end
+
+  subgraph Events[活动]
+    EVENTS[/events\n活动列表]
+    EVENTSTATE[进入详情\nroute state: {eventId}\n或页面内选择]
+  end
+
+  H --> HOME
+  H --> TAB
+  H --> STORE
+  H --> EVENTS
+  H --> USER
+
+  HUB --> HUB_EVENTS
+  HUB --> HUB_QUICK
+  HUB --> HUB_TPL
+  HUB --> HUB_GAMES
+
+  HUB_EVENTS -->|Link + state: eventId| EVENTS
+  HUB_TPL -->|查看全部| STORE
+  HUB_GAMES -->|查看全部| GALLERY
+  HUB_GAMES -->|点击卡片| GAME
+  HUB_QUICK -->|创建新项目\n生成 projectId| WF
+  HUB_QUICK -->|进入我的资产库| MYASSETS
+
+  TAB -->|tab=hot/latest| FEED
+  FEED -->|点击帖子卡片| POST
+  POST -->|作者头像/名称| USER
+
+  TAB -->|tab=skills| SKILL_MARKET
+  SKILL_MARKET -->|进入详情| SKILL
+  SKILL -->|浮动发帖按钮| FAB
+
+  TAB -->|tab=games| GALLERY
+  GALLERY -->|点击卡片| GAME
+  GAME -->|浮动发帖按钮| FAB
+
+  STORE -->|新建项目（用于工作流）| WF
+  MYASSETS -->|进入工作流\n/?project=:projectId| WF
+
+  EVENTS --> EVENTSTATE
+  FAB -->|打开 PostComposer 弹层\n(不切换路由)| POST
+        </div>
+      </div>
+    </div>
+
+    <script type="module">
+      import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+      mermaid.initialize({
+        startOnLoad: true,
+        theme: "dark",
+        themeVariables: {
+          background: "#0b0b0d",
+          primaryColor: "#141418",
+          primaryTextColor: "#dfe0e5",
+          primaryBorderColor: "#3e3e48",
+          lineColor: "#5a5a66",
+          secondaryColor: "#101012",
+          tertiaryColor: "#121216",
+          fontFamily: "Segoe UI, ui-sans-serif, system-ui",
+          fontSize: "12px"
+        },
+        flowchart: { curve: "basis" }
+      });
+    </script>
+  </body>
+</html>
+

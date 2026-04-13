@@ -15,7 +15,7 @@ export function Avatar({ src, alt, className, size = 'md' }: AvatarProps) {
   };
 
   return (
-    <div className={cn("rounded-full overflow-hidden bg-gray-200 flex-shrink-0", sizeClasses[size], className)}>
+    <div className={cn("rounded-full overflow-hidden bg-surface-2 border border-border flex-shrink-0", sizeClasses[size], className)}>
       <img src={src} alt={alt} className="w-full h-full object-cover" />
     </div>
   );

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft, Link as LinkIcon, Send, ThumbsUp, Users } from 'lucide-react';
 import { mockGames } from '../data/mock';
@@ -7,6 +7,7 @@ import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
 import { supabase } from '../lib/supabaseClient';
 import { useAuthStore } from '../stores/authStore';
+import { apiCreateGameComment, apiGetGameComments, apiGetLikedGameCommentIds, apiToggleGameCommentLike } from '../lib/apiClient';
 
 type ProfileRow = {
   id: string;
@@ -25,13 +26,25 @@ type GamePostRow = {
   author: ProfileRow | ProfileRow[] | null;
 };
 
-type GameChatMessageRow = {
+type CountRow = { count: number };
+
+type GameCommentRow = {
   id: string;
-  game_id: string;
-  sender_id: string;
+  parent_id: string | null;
   content: string;
   created_at: string;
-  sender: ProfileRow | ProfileRow[] | null;
+  author: ProfileRow | ProfileRow[] | null;
+  game_comment_likes?: CountRow[];
+};
+
+type GameComment = {
+  id: string;
+  parent_id: string | null;
+  content: string;
+  created_at: string;
+  author: ProfileRow | ProfileRow[] | null;
+  likesCount: number;
+  viewerHasLiked: boolean;
 };
 
 type GameRow = {
@@ -84,7 +97,7 @@ export function GameDetail() {
   const [loadingGame, setLoadingGame] = useState(false);
   const [gameError, setGameError] = useState<string | null>(null);
 
-  const { user, openModal } = useAuthStore();
+  const { user, session, openModal } = useAuthStore();
 
   const [loadingShare, setLoadingShare] = useState(false);
   const [shareError, setShareError] = useState<string | null>(null);
@@ -95,21 +108,18 @@ export function GameDetail() {
   const [videoUrlDraft, setVideoUrlDraft] = useState('');
   const [repoUrlDraft, setRepoUrlDraft] = useState('');
 
-  const [loadingChat, setLoadingChat] = useState(false);
-  const [chatError, setChatError] = useState<string | null>(null);
-  const [messages, setMessages] = useState<GameChatMessageRow[]>([]);
-  const [chatLiveStatus, setChatLiveStatus] = useState<'connecting' | 'live' | 'error'>('connecting');
-  const [newMessage, setNewMessage] = useState('');
-  const [sending, setSending] = useState(false);
+  const [loadingComments, setLoadingComments] = useState(false);
+  const [commentsError, setCommentsError] = useState<string | null>(null);
+  const [comments, setComments] = useState<GameComment[]>([]);
+  const [commentsRefreshNonce, setCommentsRefreshNonce] = useState(0);
+  const [expandedComments, setExpandedComments] = useState<string[]>([]);
+  const [commentDraft, setCommentDraft] = useState('');
+  const [submittingComment, setSubmittingComment] = useState(false);
+  const [replyTarget, setReplyTarget] = useState<{ id: string; label: string } | null>(null);
+  const [commentLikeBusy, setCommentLikeBusy] = useState<string | null>(null);
 
-  const listRef = useRef<HTMLDivElement | null>(null);
-  const stickToBottomRef = useRef(true);
-  const pollTimerRef = useRef<number | null>(null);
-  const pollBusyRef = useRef(false);
-  const scrollToBottom = (smooth: boolean) => {
-    const el = listRef.current;
-    if (!el) return;
-    el.scrollTo({ top: el.scrollHeight, behavior: smooth ? 'smooth' : 'auto' });
+  const toggleReplies = (commentId: string) => {
+    setExpandedComments(prev => (prev.includes(commentId) ? prev.filter(id => id !== commentId) : [...prev, commentId]));
   };
 
   useEffect(() => {
@@ -174,116 +184,47 @@ export function GameDetail() {
     let cancelled = false;
 
     (async () => {
-      setLoadingChat(true);
-      setChatError(null);
-      const { data, error } = await supabase
-        .from('game_chat_messages')
-        .select('id,game_id,sender_id,content,created_at,sender:profiles!game_chat_messages_sender_id_fkey(id,display_name,avatar_url)')
-        .eq('game_id', gameId)
-        .is('parent_id', null)
-        .order('created_at', { ascending: true })
-        .limit(500);
-      if (cancelled) return;
-      if (error) {
-        setChatError(error.message);
-        setMessages([]);
-      } else {
-        setMessages((data as unknown as GameChatMessageRow[] | null) ?? []);
-        setTimeout(() => scrollToBottom(false), 0);
+      setLoadingComments(true);
+      setCommentsError(null);
+      try {
+        const accessToken = session?.access_token ?? null;
+        const res = await apiGetGameComments({ gameId, accessToken });
+        if (cancelled) return;
+        const rows = (res.data as unknown as GameCommentRow[] | null) ?? [];
+        const base = rows.map((r) => {
+          const likesCount = r.game_comment_likes?.[0]?.count ?? 0;
+          return {
+            id: r.id,
+            parent_id: r.parent_id,
+            content: r.content,
+            created_at: r.created_at,
+            author: r.author,
+            likesCount: Number(likesCount),
+            viewerHasLiked: false,
+          } satisfies GameComment;
+        });
+
+        if (accessToken && base.length > 0) {
+          const likedRes = await apiGetLikedGameCommentIds({ accessToken, commentIds: base.map((c) => c.id) });
+          if (cancelled) return;
+          const likedSet = new Set((likedRes.data ?? []).map((x) => String(x)));
+          setComments(base.map((c) => ({ ...c, viewerHasLiked: likedSet.has(c.id) })));
+        } else {
+          setComments(base);
+        }
+      } catch (e) {
+        if (cancelled) return;
+        setComments([]);
+        setCommentsError(e instanceof Error ? e.message : '加载失败');
+      } finally {
+        if (!cancelled) setLoadingComments(false);
       }
-      setLoadingChat(false);
     })();
 
-    const channel = supabase
-      .channel(`game_chat_${gameId}`)
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'game_chat_messages', filter: `game_id=eq.${gameId}` },
-        async (payload) => {
-          const row = payload.new as unknown as { id: string };
-          const { data } = await supabase
-            .from('game_chat_messages')
-            .select('id,game_id,sender_id,content,created_at,sender:profiles!game_chat_messages_sender_id_fkey(id,display_name,avatar_url),parent_id')
-            .eq('id', row.id)
-            .maybeSingle();
-          if (cancelled || !data) return;
-          const nextRowAll = data as unknown as (GameChatMessageRow & { parent_id: string | null });
-          if (nextRowAll.parent_id) return;
-          const nextRow: GameChatMessageRow = {
-            id: nextRowAll.id,
-            game_id: nextRowAll.game_id,
-            sender_id: nextRowAll.sender_id,
-            content: nextRowAll.content,
-            created_at: nextRowAll.created_at,
-            sender: (nextRowAll as any).sender,
-          };
-          setMessages((prev) => {
-            if (prev.some((m) => m.id === nextRow.id)) return prev;
-            return [...prev, nextRow];
-          });
-          if (stickToBottomRef.current) setTimeout(() => scrollToBottom(true), 0);
-        }
-      )
-      .subscribe((status) => {
-        if (cancelled) return;
-        if (status === 'SUBSCRIBED') setChatLiveStatus('live');
-        else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') setChatLiveStatus('error');
-        else setChatLiveStatus('connecting');
-      });
-
     return () => {
       cancelled = true;
-      supabase.removeChannel(channel);
     };
-  }, [gameId]);
-
-  useEffect(() => {
-    if (!gameId) return;
-    let cancelled = false;
-
-    const pollOnce = async () => {
-      if (pollBusyRef.current) return;
-      pollBusyRef.current = true;
-      try {
-        const { data, error } = await supabase
-          .from('game_chat_messages')
-          .select('id,game_id,sender_id,content,created_at,sender:profiles!game_chat_messages_sender_id_fkey(id,display_name,avatar_url)')
-          .eq('game_id', gameId)
-          .is('parent_id', null)
-          .order('created_at', { ascending: false })
-          .limit(50);
-        if (cancelled) return;
-        if (error || !data) return;
-
-        const rows = ((data as unknown as GameChatMessageRow[] | null) ?? []).slice().reverse();
-        setMessages((prev) => {
-          const existing = new Set(prev.map(m => m.id));
-          const merged = [...prev];
-          for (const r of rows) {
-            if (!existing.has(r.id)) merged.push(r);
-          }
-          return merged;
-        });
-        if (stickToBottomRef.current) setTimeout(() => scrollToBottom(false), 0);
-      } finally {
-        pollBusyRef.current = false;
-      }
-    };
-
-    pollOnce();
-    pollTimerRef.current = window.setInterval(() => {
-      if (chatLiveStatus === 'live') return;
-      pollOnce();
-    }, 2500);
-
-    return () => {
-      cancelled = true;
-      if (pollTimerRef.current) {
-        window.clearInterval(pollTimerRef.current);
-        pollTimerRef.current = null;
-      }
-    };
-  }, [gameId, chatLiveStatus]);
+  }, [commentsRefreshNonce, gameId, session?.access_token]);
 
   const shareAuthor = useMemo(() => normalizeProfile(gamePost?.author), [gamePost]);
   const shareAuthorId = shareAuthor?.id ?? gamePost?.author_id ?? '';
@@ -305,12 +246,29 @@ export function GameDetail() {
   const canCreateShare = Boolean(user && game && !gamePost && isOwner);
 
   const embedUrl = useMemo(() => (gamePost?.video_url ? getEmbedUrl(gamePost.video_url) : null), [gamePost?.video_url]);
+  const commentTree = useMemo(() => {
+    const roots: GameComment[] = [];
+    const replies = new Map<string, GameComment[]>();
+    for (const c of comments) {
+      if (!c.parent_id) roots.push(c);
+      else {
+        const list = replies.get(c.parent_id) ?? [];
+        list.push(c);
+        replies.set(c.parent_id, list);
+      }
+    }
+    roots.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+    for (const [, list] of replies) {
+      list.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+    }
+    return { roots, replies };
+  }, [comments]);
 
   if (!game && !fallbackGame && !loadingGame) {
     return (
       <div className="container mx-auto px-4 py-12 text-center">
-        <h2 className="text-2xl font-bold text-gray-900">Game not found</h2>
-        <Link to="/games" className="text-blue-600 hover:underline mt-4 inline-block">
+        <h2 className="text-2xl font-bold text-foreground">Game not found</h2>
+        <Link to="/games" className="text-primary hover:underline mt-4 inline-block">
           Return to Gallery
         </Link>
       </div>
@@ -327,14 +285,14 @@ export function GameDetail() {
   const likes = Number(game?.likes ?? fallbackGame?.likes ?? 0);
 
   return (
-    <div className="min-h-screen bg-[#F9FAFB]">
+    <div className="min-h-screen bg-background text-foreground">
       <div className="container mx-auto px-4 py-6 max-w-5xl">
         <div className="mb-4 flex items-center justify-between">
-          <Link to="/games" className="inline-flex items-center text-sm text-gray-500 hover:text-gray-900 transition-colors">
+          <Link to="/games" className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground transition-colors">
             <ArrowLeft className="w-4 h-4 mr-1" />
             返回展馆
           </Link>
-          <div className="flex items-center gap-3 text-xs text-gray-500">
+          <div className="flex items-center gap-3 text-xs text-muted-foreground">
             <div className="flex items-center gap-1">
               <Users className="w-4 h-4" />
               <span>{playCount.toLocaleString()}</span>
@@ -347,60 +305,60 @@ export function GameDetail() {
         </div>
 
         <div className="grid grid-cols-1 gap-4">
-          <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+          <div className="bg-surface rounded-xl border border-border shadow-e1 overflow-hidden">
             <div className="p-6 md:p-8">
               <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0">
-                  <h1 className="text-2xl md:text-3xl font-bold text-gray-900 mb-2">{title}</h1>
-                  <p className="text-gray-600 leading-relaxed">{description}</p>
+                  <h1 className="text-2xl md:text-3xl font-bold text-foreground mb-2">{title}</h1>
+                  <p className="text-muted-foreground leading-relaxed">{description}</p>
                   <div className="mt-3 flex items-center gap-3">
                     <Avatar src={ownerAvatar} alt={ownerName} size="sm" />
                     <div className="min-w-0">
-                      <div className="text-sm font-semibold text-gray-900 truncate">{ownerName}</div>
-                      <div className="text-xs text-gray-500 truncate">@{(ownerId || fallbackGame?.author.id || gameId).slice(0, 6)}</div>
+                      <div className="text-sm font-semibold text-foreground truncate">{ownerName}</div>
+                      <div className="text-xs text-muted-foreground truncate">@{(ownerId || fallbackGame?.author.id || gameId).slice(0, 6)}</div>
                     </div>
-                    {loadingGame && <span className="text-xs text-gray-400">加载中...</span>}
-                    {gameError && <span className="text-xs text-red-600">{gameError}</span>}
+                    {loadingGame && <span className="text-xs text-muted-foreground/70">加载中...</span>}
+                    {gameError && <span className="text-xs text-destructive">{gameError}</span>}
                   </div>
                   <div className="mt-3 flex flex-wrap gap-2">
                     {tags.map(tag => (
-                      <span key={tag} className="text-[11px] px-2.5 py-1 bg-gray-50 text-gray-700 rounded-md border border-gray-100">
+                      <span key={tag} className="text-[11px] px-2.5 py-1 bg-surface-2 text-muted-foreground rounded-md border border-border">
                         {tag}
                       </span>
                     ))}
                   </div>
                 </div>
-                <div className="w-32 h-20 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
+                <div className="w-32 h-20 bg-surface-2 rounded-lg overflow-hidden flex-shrink-0 border border-border">
                   <img src={thumbnail} alt={title} className="w-full h-full object-cover" />
                 </div>
               </div>
 
               <div className="mt-6">
-                <div className="text-sm font-semibold text-gray-900 mb-3">分享</div>
+                <div className="text-sm font-semibold text-foreground mb-3">分享</div>
 
                 {loadingShare ? (
-                  <div className="rounded-xl border border-gray-100 bg-gray-50 p-4 text-sm text-gray-500">加载中...</div>
+                  <div className="rounded-xl border border-border bg-surface-2 p-4 text-sm text-muted-foreground">加载中...</div>
                 ) : gamePost ? (
-                  <div className="rounded-xl border border-gray-100 bg-gray-50 p-4">
+                  <div className="rounded-xl border border-border bg-surface-2 p-4">
                     <div className="flex items-start justify-between gap-4">
                       <div className="min-w-0 flex items-center gap-3">
                         <Avatar src={shareAuthorAvatar} alt={shareAuthorName} size="sm" />
                         <div className="min-w-0">
-                          <div className="text-sm font-semibold text-gray-900 truncate">{shareAuthorName}</div>
-                          <div className="text-xs text-gray-500 truncate">@{shareAuthorId.slice(0, 6)}</div>
+                          <div className="text-sm font-semibold text-foreground truncate">{shareAuthorName}</div>
+                          <div className="text-xs text-muted-foreground truncate">@{shareAuthorId.slice(0, 6)}</div>
                         </div>
                       </div>
                       {canEditShare && (
-                        <Badge variant="secondary" className="bg-white border border-gray-100 text-gray-600">你发布的分享</Badge>
+                        <Badge variant="secondary" className="bg-surface border border-border text-muted-foreground">你发布的分享</Badge>
                       )}
                     </div>
 
-                    <div className="mt-3 text-sm text-gray-700 whitespace-pre-wrap">{gamePost.author_note}</div>
+                    <div className="mt-3 text-sm text-foreground/90 whitespace-pre-wrap">{gamePost.author_note}</div>
 
                     <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
-                      <div className="rounded-lg border border-gray-100 bg-white overflow-hidden">
-                        <div className="px-3 py-2 text-xs font-semibold text-gray-700 border-b border-gray-100">视频</div>
-                        <div className="aspect-video bg-gray-50">
+                      <div className="rounded-lg border border-border bg-surface overflow-hidden">
+                        <div className="px-3 py-2 text-xs font-semibold text-muted-foreground border-b border-border">视频</div>
+                        <div className="aspect-video bg-surface-2">
                           {gamePost.video_url ? (
                             embedUrl ? (
                               <iframe
@@ -411,40 +369,40 @@ export function GameDetail() {
                                 allowFullScreen
                               />
                             ) : (
-                              <div className="w-full h-full flex items-center justify-center text-xs text-gray-500 px-4">
+                              <div className="w-full h-full flex items-center justify-center text-xs text-muted-foreground px-4">
                                 暂不支持该视频链接预览，点击右侧按钮打开
                               </div>
                             )
                           ) : (
-                            <div className="w-full h-full flex items-center justify-center text-xs text-gray-500">未提供视频链接</div>
+                            <div className="w-full h-full flex items-center justify-center text-xs text-muted-foreground">未提供视频链接</div>
                           )}
                         </div>
                       </div>
 
-                      <div className="rounded-lg border border-gray-100 bg-white overflow-hidden">
-                        <div className="px-3 py-2 text-xs font-semibold text-gray-700 border-b border-gray-100">代码库</div>
+                      <div className="rounded-lg border border-border bg-surface overflow-hidden">
+                        <div className="px-3 py-2 text-xs font-semibold text-muted-foreground border-b border-border">代码库</div>
                         <div className="p-3">
                           {gamePost.repo_url ? (
                             <a
                               href={gamePost.repo_url}
                               target="_blank"
                               rel="noreferrer"
-                              className="inline-flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700"
+                              className="inline-flex items-center gap-2 text-sm text-primary hover:underline"
                             >
                               <LinkIcon className="w-4 h-4" />
-                              <span className="truncate max-w-[28rem]">{gamePost.repo_url}</span>
+                              <span className="truncate max-w-text-xl">{gamePost.repo_url}</span>
                             </a>
                           ) : (
-                            <div className="text-sm text-gray-500">未提供代码库链接</div>
+                            <div className="text-sm text-muted-foreground">未提供代码库链接</div>
                           )}
                         </div>
                       </div>
                     </div>
                   </div>
                 ) : (
-                  <div className="rounded-xl border border-gray-100 bg-gray-50 p-4">
-                    <div className="text-sm text-gray-600">暂无分享内容。</div>
-                    {shareError && <div className="mt-2 text-xs text-red-600">加载失败：{shareError}</div>}
+                  <div className="rounded-xl border border-border bg-surface-2 p-4">
+                    <div className="text-sm text-muted-foreground">暂无分享内容。</div>
+                    {shareError && <div className="mt-2 text-xs text-destructive">加载失败：{shareError}</div>}
 
                     {canCreateShare && (
                       <div className="mt-4">
@@ -464,19 +422,19 @@ export function GameDetail() {
                             <textarea
                               value={authorNoteDraft}
                               onChange={(e) => setAuthorNoteDraft(e.target.value)}
-                              className="w-full min-h-[96px] rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500"
+                              className="w-full min-h-[96px] rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                               placeholder="写下你的说明..."
                             />
                             <input
                               value={videoUrlDraft}
                               onChange={(e) => setVideoUrlDraft(e.target.value)}
-                              className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500"
+                              className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                               placeholder="视频链接（可选）"
                             />
                             <input
                               value={repoUrlDraft}
                               onChange={(e) => setRepoUrlDraft(e.target.value)}
-                              className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500"
+                              className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                               placeholder="代码库链接（可选）"
                             />
                             <div className="flex items-center gap-2">
@@ -521,19 +479,19 @@ export function GameDetail() {
                     )}
 
                     {!user && (
-                      <div className="mt-4 text-xs text-gray-500">
+                      <div className="mt-4 text-xs text-muted-foreground">
                         登录后可参与群聊。
                       </div>
                     )}
 
                     {user && !isOwner && (
-                      <div className="mt-4 text-xs text-gray-500">
+                      <div className="mt-4 text-xs text-muted-foreground">
                         只有该游戏项目的创建者可以发布分享。
                       </div>
                     )}
 
                     {!game && (
-                      <div className="mt-4 text-xs text-gray-500">
+                      <div className="mt-4 text-xs text-muted-foreground">
                         该游戏尚未绑定到数据库，暂不支持创建分享。
                       </div>
                     )}
@@ -543,133 +501,190 @@ export function GameDetail() {
             </div>
           </div>
 
-          <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+          <div className="bg-surface rounded-xl border border-border shadow-e1 overflow-hidden">
+            <div className="px-6 py-4 border-b border-border flex items-center justify-between">
               <div>
-                <div className="text-sm font-semibold text-gray-900">聊天室</div>
-                  <div className="text-xs text-gray-500">
-                    像微信群一样聊聊这个游戏
-                    <span className={chatLiveStatus === 'live' ? 'ml-2 text-green-600' : chatLiveStatus === 'error' ? 'ml-2 text-red-600' : 'ml-2 text-gray-400'}>
-                      {chatLiveStatus === 'live' ? '实时已连接' : chatLiveStatus === 'error' ? '实时连接异常' : '实时连接中'}
-                    </span>
-                  </div>
+                <div className="text-sm font-semibold text-foreground">评论区</div>
+                <div className="text-xs text-muted-foreground">像帖子一样讨论这个游戏</div>
               </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="text-gray-500"
-                onClick={() => {
-                  stickToBottomRef.current = true;
-                  scrollToBottom(true);
-                }}
-              >
-                回到最新
-              </Button>
+              <div className="text-xs text-muted-foreground">
+                <span className="font-medium">{comments.length}</span> 条
+              </div>
             </div>
 
-            <div
-              ref={listRef}
-              className="h-[420px] md:h-[520px] overflow-auto px-6 py-4 bg-[#F9FAFB]"
-              onScroll={() => {
-                const el = listRef.current;
-                if (!el) return;
-                const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
-                stickToBottomRef.current = nearBottom;
-              }}
-            >
-              {loadingChat ? (
-                <div className="text-sm text-gray-500">加载中...</div>
-              ) : messages.length === 0 ? (
-                <div className="text-sm text-gray-500">还没有人发言，来聊聊吧。</div>
-              ) : (
-                <div className="space-y-4">
-                  {messages.map((m) => {
-                    const sender = normalizeProfile(m.sender);
-                    const senderId = sender?.id ?? m.sender_id;
-                    const senderName = sender?.display_name ?? `User ${String(senderId).slice(0, 4)}`;
-                    const senderAvatar = sender?.avatar_url
-                      ? String(sender.avatar_url)
-                      : `https://api.dicebear.com/7.x/avataaars/svg?seed=${senderId || m.id}`;
-                    const mine = Boolean(user && user.id === senderId);
-
-                    return (
-                      <div key={m.id}>
-                        <div className={mine ? 'flex justify-end' : 'flex justify-start'}>
-                          <div className={mine ? 'max-w-[82%] flex flex-row-reverse items-end gap-2' : 'max-w-[82%] flex items-end gap-2'}>
-                            <Avatar src={senderAvatar} alt={senderName} size="sm" className="w-7 h-7" />
-                            <div className={mine ? 'bg-purple-600 text-white rounded-2xl rounded-br-md px-3 py-2 shadow-sm' : 'bg-white text-gray-900 rounded-2xl rounded-bl-md px-3 py-2 shadow-sm border border-gray-100'}>
-                              <div className={mine ? 'text-[11px] text-white/80 mb-1' : 'text-[11px] text-gray-500 mb-1'}>{senderName}</div>
-                              <div className={mine ? 'text-sm whitespace-pre-wrap' : 'text-sm whitespace-pre-wrap'}>{m.content}</div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
+            <div className="px-6 py-4 bg-surface-2">
+              {replyTarget && (
+                <div className="mb-3 rounded-lg border border-border bg-surface px-3 py-2 text-xs text-muted-foreground flex items-center justify-between gap-3">
+                  <div className="min-w-0 truncate">回复给：{replyTarget.label}</div>
+                  <button
+                    type="button"
+                    className="shrink-0 text-muted-foreground hover:text-foreground"
+                    onClick={() => setReplyTarget(null)}
+                  >
+                    取消
+                  </button>
                 </div>
               )}
-              {chatError && <div className="mt-3 text-xs text-red-600">加载失败：{chatError}</div>}
-            </div>
 
-            <div className="border-t border-gray-100 bg-white px-6 py-4">
-              <div className="flex items-end gap-3">
+              <div className="rounded-xl border border-border bg-surface p-4">
                 <textarea
-                  value={newMessage}
-                  onChange={(e) => setNewMessage(e.target.value)}
-                  className="flex-1 min-h-[44px] max-h-32 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500"
-                  placeholder={user ? '输入消息，Enter 发送，Shift+Enter 换行' : '登录后参与群聊'}
-                  disabled={!user || sending}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                      e.preventDefault();
-                      const btn = document.getElementById('send_game_message_btn') as HTMLButtonElement | null;
-                      btn?.click();
-                    }
-                  }}
+                  value={commentDraft}
+                  onChange={(e) => setCommentDraft(e.target.value)}
+                  className="w-full min-h-[84px] rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                  placeholder={user ? '写下你的评论...' : '登录后发表评论'}
+                  disabled={submittingComment}
                 />
-                <Button
-                  id="send_game_message_btn"
-                  className="h-11 px-4"
-                  disabled={!user || sending || newMessage.trim().length === 0}
-                  onClick={async () => {
-                    if (!user) {
-                      openModal('signIn');
-                      return;
-                    }
-                    const trimmed = newMessage.trim();
-                    if (!trimmed) return;
-                    setSending(true);
-                    try {
-                      const { data, error } = await supabase
-                        .from('game_chat_messages')
-                        .insert({
-                          game_id: gameId,
-                          sender_id: user.id,
-                          parent_id: null,
-                          content: trimmed,
-                        })
-                        .select('id,game_id,sender_id,content,created_at,sender:profiles!game_chat_messages_sender_id_fkey(id,display_name,avatar_url)')
-                        .maybeSingle();
-                      if (error) throw error;
-
-                      if (data) {
-                        const row = data as unknown as GameChatMessageRow;
-                        setMessages((prev) => {
-                          if (prev.some((m) => m.id === row.id)) return prev;
-                          return [...prev, row];
-                        });
+                <div className="mt-3 flex items-center justify-end">
+                  <Button
+                    className="gap-2"
+                    disabled={submittingComment || commentDraft.trim().length === 0}
+                    onClick={async () => {
+                      if (!user || !session?.access_token) {
+                        openModal('signIn');
+                        return;
                       }
-                      setNewMessage('');
-                      stickToBottomRef.current = true;
-                      setTimeout(() => scrollToBottom(true), 0);
-                    } finally {
-                      setSending(false);
-                    }
-                  }}
-                >
-                  <Send className="w-4 h-4 mr-2" />
-                  发送
-                </Button>
+                      const trimmed = commentDraft.trim();
+                      if (!trimmed) return;
+                      setSubmittingComment(true);
+                      try {
+                        const content = replyTarget ? `@${replyTarget.label} ${trimmed}` : trimmed;
+                        await apiCreateGameComment({
+                          accessToken: session.access_token,
+                          gameId,
+                          content,
+                          parentId: replyTarget?.id ?? null,
+                        });
+                        setCommentDraft('');
+                        setReplyTarget(null);
+                        setCommentsRefreshNonce((n) => n + 1);
+                      } finally {
+                        setSubmittingComment(false);
+                      }
+                    }}
+                  >
+                    <Send className="w-4 h-4" />
+                    {replyTarget ? '回复' : '发表评论'}
+                  </Button>
+                </div>
+              </div>
+
+              <div className="mt-4">
+                {loadingComments ? (
+                  <div className="text-sm text-muted-foreground">加载中...</div>
+                ) : commentTree.roots.length === 0 ? (
+                  <div className="text-sm text-muted-foreground">暂无评论，来抢沙发吧。</div>
+                ) : (
+                  <div className="space-y-4">
+                    {commentTree.roots.map((c) => {
+                      const cAuthor = normalizeProfile(c.author);
+                      const cAuthorId = cAuthor?.id ?? '';
+                      const cName = cAuthor?.display_name ?? (cAuthorId ? `User ${cAuthorId.slice(0, 4)}` : 'User');
+                      const cAvatar = cAuthor?.avatar_url
+                        ? String(cAuthor.avatar_url)
+                        : `https://api.dicebear.com/7.x/avataaars/svg?seed=${cAuthorId || c.id}`;
+                      const replies = commentTree.replies.get(c.id) ?? [];
+                      const isExpanded = expandedComments.includes(c.id);
+
+                      return (
+                        <div key={c.id} className="flex gap-4 group">
+                          <Avatar src={cAvatar} alt={cName} size="sm" />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="text-sm font-semibold text-foreground truncate">{cName}</div>
+                              <div className="text-xs text-muted-foreground shrink-0">{new Date(c.created_at).toLocaleString()}</div>
+                            </div>
+                            <div className="mt-1 text-sm text-foreground/90 whitespace-pre-wrap break-words">{c.content}</div>
+                            <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className={c.viewerHasLiked ? 'text-primary hover:text-primary hover:bg-primary/10 gap-1.5 h-7 px-2' : 'text-muted-foreground hover:text-foreground hover:bg-surface gap-1.5 h-7 px-2'}
+                                disabled={commentLikeBusy === c.id}
+                                onClick={async (e) => {
+                                  e.preventDefault();
+                                  if (!user || !session?.access_token) {
+                                    openModal('signIn');
+                                    return;
+                                  }
+                                  setCommentLikeBusy(c.id);
+                                  try {
+                                    const res = await apiToggleGameCommentLike({ accessToken: session.access_token, commentId: c.id });
+                                    setComments((prev) =>
+                                      prev.map((x) =>
+                                        x.id !== c.id
+                                          ? x
+                                          : {
+                                              ...x,
+                                              viewerHasLiked: res.liked,
+                                              likesCount: Math.max(0, (x.likesCount ?? 0) + (res.liked ? 1 : -1)),
+                                            }
+                                      )
+                                    );
+                                  } finally {
+                                    setCommentLikeBusy(null);
+                                  }
+                                }}
+                              >
+                                <ThumbsUp className="w-4 h-4" />
+                                <span className="font-medium">{c.likesCount > 0 ? c.likesCount : ''}</span>
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="text-muted-foreground hover:text-foreground hover:bg-surface h-7 px-2"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  setReplyTarget({ id: c.id, label: cName });
+                                }}
+                              >
+                                回复
+                              </Button>
+                              {replies.length > 0 && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="text-muted-foreground hover:text-foreground hover:bg-surface h-7 px-2"
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    toggleReplies(c.id);
+                                  }}
+                                >
+                                  {isExpanded ? `收起回复` : `展开 ${replies.length} 条回复`}
+                                </Button>
+                              )}
+                            </div>
+
+                            {isExpanded && replies.length > 0 && (
+                              <div className="mt-3 pl-4 border-l border-border space-y-3">
+                                {replies.map((r) => {
+                                  const rAuthor = normalizeProfile(r.author);
+                                  const rAuthorId = rAuthor?.id ?? '';
+                                  const rName = rAuthor?.display_name ?? (rAuthorId ? `User ${rAuthorId.slice(0, 4)}` : 'User');
+                                  const rAvatar = rAuthor?.avatar_url
+                                    ? String(rAuthor.avatar_url)
+                                    : `https://api.dicebear.com/7.x/avataaars/svg?seed=${rAuthorId || r.id}`;
+                                  return (
+                                    <div key={r.id} className="flex gap-3">
+                                      <Avatar src={rAvatar} alt={rName} size="sm" className="w-7 h-7" />
+                                      <div className="flex-1 min-w-0">
+                                        <div className="flex items-center justify-between gap-2">
+                                          <div className="text-sm font-semibold text-foreground truncate">{rName}</div>
+                                          <div className="text-xs text-muted-foreground shrink-0">{new Date(r.created_at).toLocaleString()}</div>
+                                        </div>
+                                        <div className="mt-1 text-sm text-foreground/90 whitespace-pre-wrap break-words">{r.content}</div>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+                {commentsError && <div className="mt-3 text-xs text-destructive">加载失败：{commentsError}</div>}
               </div>
             </div>
           </div>
