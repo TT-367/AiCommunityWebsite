@@ -34,7 +34,7 @@ export function AIToolchainSidebar(props?: { mode?: 'sidebar' | 'drawer' }) {
       className={`bg-surface border border-border shadow-e1 flex flex-col h-full overflow-hidden w-full max-w-full text-foreground ${mode === 'drawer' ? 'rounded-none' : 'rounded-xl md:max-h-[calc(100vh-8rem)] md:sticky md:top-24'}`}
     >
       {/* 头部与引擎筛选 */}
-      <div className="p-4 border-b border-border shrink-0 bg-surface-2/50">
+      <div className="p-4 border-b border-border shrink-0 bg-surface-2/65">
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center text-primary-foreground shadow-e1">
             <Settings2 className="w-4 h-4" />
@@ -61,7 +61,7 @@ export function AIToolchainSidebar(props?: { mode?: 'sidebar' | 'drawer' }) {
 
           return (
             <div key={cat.id} className="rounded-xl border border-border bg-surface shadow-e1 overflow-hidden">
-              <div className="px-3 py-3 border-b border-border bg-surface-2/40">
+              <div className="px-3 py-3 border-b border-border bg-surface-2/55">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
@@ -110,7 +110,7 @@ export function AIToolchainSidebar(props?: { mode?: 'sidebar' | 'drawer' }) {
                       <button
                         key={tool.id}
                         type="button"
-                        className="group/tool relative flex flex-col items-center justify-center p-2 rounded-xl bg-surface-2/80 hover:bg-surface border border-transparent hover:border-primary/30 hover:shadow-e1 transition-all text-center"
+                        className="group/tool relative flex flex-col items-center justify-center p-2 rounded-xl bg-surface-2/88 hover:bg-surface border border-transparent hover:border-primary/30 hover:shadow-e1 transition-all text-center"
                         onClick={() => {
                           setSelectedTool(tool);
                           setToolOpen(true);

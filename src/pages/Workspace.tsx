@@ -345,9 +345,9 @@ export function Workspace() {
     `flex items-center justify-center gap-2 select-none cursor-grab active:cursor-grabbing transition-colors ${selected ? 'text-foreground/92' : 'text-foreground/72'}`;
   const getBlueprintPanelClass = (selected: boolean) =>
     `rounded-[30px] border backdrop-blur-xl p-4 transition-[border-color,box-shadow,background-color,opacity] duration-200 ${
-      selected ? 'border-primary/35 bg-surface/60 shadow-e3 ring-1 ring-primary/20' : 'border-border/40 bg-surface/45 shadow-e2 opacity-90'
+      selected ? 'border-primary/42 bg-surface/72 shadow-e3 ring-1 ring-primary/20' : 'border-border/55 bg-surface/58 shadow-e2 opacity-90'
     }`;
-  const blueprintChatClass = 'w-[920px] max-w-[92vw] rounded-[30px] border border-primary/30 bg-surface/60 backdrop-blur-xl shadow-e3 ring-1 ring-primary/15 px-6 py-4';
+  const blueprintChatClass = 'w-[920px] max-w-[92vw] rounded-[30px] border border-primary/35 bg-surface/72 backdrop-blur-xl shadow-e3 ring-1 ring-primary/15 px-6 py-4';
   const hasBlueprint = blueprints.length > 0;
   const zoomPct = Math.round(zoom * 100);
   const canvasTransform = `translate3d(${(1 - zoom) * (viewportSize.w / 2)}px, ${(1 - zoom) * (viewportSize.h / 2)}px, 0) scale(${zoom})`;
@@ -387,7 +387,7 @@ export function Workspace() {
       />
 
       {/* Header */}
-      <header className="relative z-10 flex items-center justify-between h-14 px-4 border-b border-border/60 bg-surface/55 backdrop-blur-md">
+      <header className="relative z-10 flex items-center justify-between h-14 px-4 border-b border-border/70 bg-surface/65 backdrop-blur-md">
         <div className="flex items-center gap-3">
           <button
             type="button"
@@ -456,7 +456,7 @@ export function Workspace() {
         
         {/* Left Sidebar (Floating Pill) */}
         <div className="absolute left-4 top-1/2 -translate-y-1/2 z-10">
-          <div className="flex flex-col items-center gap-4 p-3 rounded-full bg-surface/35 border border-border/55 backdrop-blur-xl shadow-e3 relative overflow-hidden">
+          <div className="flex flex-col items-center gap-4 p-3 rounded-full bg-surface/45 border border-border/65 backdrop-blur-xl shadow-e3 relative overflow-hidden">
             <div
               className="absolute inset-0 pointer-events-none opacity-60"
               style={{
@@ -505,7 +505,7 @@ export function Workspace() {
           {addMenuOpen ? (
             <div
               ref={addMenuRef}
-              className="absolute left-16 top-0 -translate-y-2 w-[304px] rounded-3xl border border-border/55 bg-surface/55 backdrop-blur-xl shadow-e3 overflow-hidden"
+              className="absolute left-16 top-0 -translate-y-2 w-[304px] rounded-3xl border border-border/65 bg-surface/65 backdrop-blur-xl shadow-e3 overflow-hidden"
               role="dialog"
               aria-label="添加节点"
               onMouseEnter={cancelAddMenuClose}
@@ -520,7 +520,7 @@ export function Workspace() {
                   className="w-full flex items-center gap-3 px-3 py-2.5 rounded-2xl hover:bg-surface-2/55 transition-colors text-left"
                   onClick={() => openBlueprint('text')}
                 >
-                  <span className="w-9 h-9 rounded-2xl border border-border/60 bg-surface-2/45 inline-flex items-center justify-center">
+                  <span className="w-9 h-9 rounded-2xl border border-border/70 bg-surface-2/55 inline-flex items-center justify-center">
                     <Pilcrow className="w-4 h-4 text-foreground/80" />
                   </span>
                   <span className="text-sm font-semibold text-foreground/90">文本</span>
@@ -530,7 +530,7 @@ export function Workspace() {
                   className="w-full flex items-center gap-3 px-3 py-2.5 rounded-2xl hover:bg-surface-2/55 transition-colors text-left"
                   onClick={() => openBlueprint('image')}
                 >
-                  <span className="w-9 h-9 rounded-2xl border border-border/60 bg-surface-2/45 inline-flex items-center justify-center">
+                  <span className="w-9 h-9 rounded-2xl border border-border/70 bg-surface-2/55 inline-flex items-center justify-center">
                     <ImageIcon className="w-4 h-4 text-foreground/80" />
                   </span>
                   <span className="text-sm font-semibold text-foreground/90">图片</span>
@@ -540,7 +540,7 @@ export function Workspace() {
                   className="w-full flex items-center gap-3 px-3 py-2.5 rounded-2xl hover:bg-surface-2/55 transition-colors text-left"
                   onClick={() => openBlueprint('video')}
                 >
-                  <span className="w-9 h-9 rounded-2xl border border-border/60 bg-surface-2/45 inline-flex items-center justify-center">
+                  <span className="w-9 h-9 rounded-2xl border border-border/70 bg-surface-2/55 inline-flex items-center justify-center">
                     <Video className="w-4 h-4 text-foreground/80" />
                   </span>
                   <span className="text-sm font-semibold text-foreground/90">视频</span>
@@ -550,7 +550,7 @@ export function Workspace() {
                   className="w-full flex items-center gap-3 px-3 py-2.5 rounded-2xl hover:bg-surface-2/55 transition-colors text-left"
                   onClick={() => openBlueprint('media-audio')}
                 >
-                  <span className="w-9 h-9 rounded-2xl border border-border/60 bg-surface-2/45 inline-flex items-center justify-center">
+                  <span className="w-9 h-9 rounded-2xl border border-border/70 bg-surface-2/55 inline-flex items-center justify-center">
                     <Music2 className="w-4 h-4 text-foreground/80" />
                   </span>
                   <span className="text-sm font-semibold text-foreground/90">音频</span>
@@ -560,7 +560,7 @@ export function Workspace() {
                   className="w-full flex items-center gap-3 px-3 py-2.5 rounded-2xl hover:bg-surface-2/55 transition-colors text-left"
                   onClick={() => openBlueprint('model3d')}
                 >
-                  <span className="w-9 h-9 rounded-2xl border border-border/60 bg-surface-2/45 inline-flex items-center justify-center">
+                  <span className="w-9 h-9 rounded-2xl border border-border/70 bg-surface-2/55 inline-flex items-center justify-center">
                     <Boxes className="w-4 h-4 text-foreground/80" />
                   </span>
                   <span className="text-sm font-semibold text-foreground/90">3D模型</span>
@@ -570,7 +570,7 @@ export function Workspace() {
                   className="w-full flex items-center gap-3 px-3 py-2.5 rounded-2xl hover:bg-surface-2/55 transition-colors text-left"
                   onClick={() => openBlueprint('animation')}
                 >
-                  <span className="w-9 h-9 rounded-2xl border border-border/60 bg-surface-2/45 inline-flex items-center justify-center">
+                  <span className="w-9 h-9 rounded-2xl border border-border/70 bg-surface-2/55 inline-flex items-center justify-center">
                     <Clapperboard className="w-4 h-4 text-foreground/80" />
                   </span>
                   <span className="text-sm font-semibold text-foreground/90">动画</span>
@@ -591,7 +591,7 @@ export function Workspace() {
 
               <div className="flex items-center gap-3 mt-6">
                 <button
-                  className="flex items-center gap-2 px-4 py-2 rounded-full bg-surface/45 hover:bg-surface-2/55 border border-border/70 transition-all text-sm font-medium text-foreground/85"
+                  className="flex items-center gap-2 px-4 py-2 rounded-full bg-surface/55 hover:bg-surface-2/65 border border-border/75 transition-all text-sm font-medium text-foreground/85"
                   type="button"
                   onClick={() => openBlueprint('prototype')}
                 >
@@ -599,7 +599,7 @@ export function Workspace() {
                   游戏玩法与原型设计
                 </button>
                 <button
-                  className="flex items-center gap-2 px-4 py-2 rounded-full bg-surface/45 hover:bg-surface-2/55 border border-border/70 transition-all text-sm font-medium text-foreground/85"
+                  className="flex items-center gap-2 px-4 py-2 rounded-full bg-surface/55 hover:bg-surface-2/65 border border-border/75 transition-all text-sm font-medium text-foreground/85"
                   type="button"
                   onClick={() => openBlueprint('art')}
                 >
@@ -607,7 +607,7 @@ export function Workspace() {
                   美术资产生成
                 </button>
                 <button
-                  className="flex items-center gap-2 px-4 py-2 rounded-full bg-surface/45 hover:bg-surface-2/55 border border-border/70 transition-all text-sm font-medium text-foreground/85"
+                  className="flex items-center gap-2 px-4 py-2 rounded-full bg-surface/55 hover:bg-surface-2/65 border border-border/75 transition-all text-sm font-medium text-foreground/85"
                   type="button"
                   onClick={() => openBlueprint('audio')}
                 >
@@ -615,7 +615,7 @@ export function Workspace() {
                   游戏音频生成
                 </button>
                 <button
-                  className="flex items-center gap-2 px-4 py-2 rounded-full bg-surface/45 hover:bg-surface-2/55 border border-border/70 transition-all text-sm font-medium text-foreground/85"
+                  className="flex items-center gap-2 px-4 py-2 rounded-full bg-surface/55 hover:bg-surface-2/65 border border-border/75 transition-all text-sm font-medium text-foreground/85"
                   type="button"
                   onClick={() => openBlueprint('templates')}
                 >
@@ -629,7 +629,7 @@ export function Workspace() {
 
         {/* Bottom Left Controls */}
         <div className="absolute left-24 bottom-6 z-10 flex items-center gap-3">
-          <div className="flex items-center gap-1 bg-surface/45 border border-border/70 rounded-full p-1 backdrop-blur-md shadow-e2">
+          <div className="flex items-center gap-1 bg-surface/55 border border-border/75 rounded-full p-1 backdrop-blur-md shadow-e2">
             <button
               type="button"
               className="w-8 h-8 rounded-full flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-surface-2/60 transition-colors"
