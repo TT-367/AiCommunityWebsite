@@ -16,6 +16,7 @@ import { mockGames, mockSkills, type Game, type MockSkill } from '../data/mock';
 import { mockEvents } from '../data/mockEvents';
 import { upsertProject } from '../data/projectAssetsStore';
 import { useAuthStore } from '../stores/authStore';
+import { apiCreateProject, isApiConfigured } from '../lib/apiClient';
 
 const GAME_ICON_URLS = Object.values(
   import.meta.glob('../assets/game-icons/*.{png,jpg,jpeg,webp,svg}', { eager: true, as: 'url' })
@@ -708,16 +709,33 @@ export function Home() {
       openModal('signIn');
       return;
     }
-    const id = typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `p_${Date.now()}`;
-    try {
-      localStorage.setItem('oc:lastProjectId', id);
-    } catch {
-      void 0;
+    if (!isApiConfigured()) {
+      const id = typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `p_${Date.now()}`;
+      try {
+        localStorage.setItem('oc:lastProjectId', id);
+      } catch {
+        void 0;
+      }
+      upsertProject({ id, name: `新项目 ${new Date().toLocaleDateString()}` });
+      const next = new URLSearchParams();
+      next.set('project', id);
+      navigate({ pathname: '/workspace', search: next.toString() });
+      return;
     }
-    upsertProject({ id, name: `新项目 ${new Date().toLocaleDateString()}` });
-    const next = new URLSearchParams();
-    next.set('project', id);
-    navigate({ pathname: '/workspace', search: next.toString() });
+    const token = session?.access_token ?? '';
+    if (!token) return;
+    apiCreateProject({ accessToken: token, name: `新项目 ${new Date().toLocaleDateString()}` })
+      .then((res) => {
+        try {
+          localStorage.setItem('oc:lastProjectId', res.data.id);
+        } catch {
+          void 0;
+        }
+        const next = new URLSearchParams();
+        next.set('project', res.data.id);
+        navigate({ pathname: '/workspace', search: next.toString() });
+      })
+      .catch(() => void 0);
   };
 
   const openMarket = () => {
