@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import {
   AlignLeft,
@@ -31,6 +31,76 @@ import {
 } from 'lucide-react';
 import { listProjects, upsertProject } from '../data/projectAssetsStore';
 
+const STYLE_TEMPLATE_IMAGE_URLS = import.meta.glob('../assets/style-models/**/*.{png,jpg,jpeg,webp}', {
+  eager: true,
+  as: 'url',
+}) as Record<string, string>;
+
+const GAME_TEMPLATE_IMAGE_URLS = import.meta.glob('../assets/game-templates/**/*.{png,jpg,jpeg,webp}', {
+  eager: true,
+  as: 'url',
+}) as Record<string, string>;
+
+const CHARACTER_TEMPLATE_IMAGE_URLS = import.meta.glob('../assets/character-templates/*.{png,jpg,jpeg,webp}', {
+  eager: true,
+  as: 'url',
+}) as Record<string, string>;
+
+type TemplateKind = 'style' | 'game' | 'character';
+type TemplateImage = { url: string; fileName: string; path: string };
+type TemplatePack = {
+  id: string;
+  name: string;
+  images: TemplateImage[];
+  coverUrl: string;
+  kind: TemplateKind;
+};
+
+const buildTemplatePacksFromFolder = (segment: string, urls: Record<string, string>, kind: TemplateKind): TemplatePack[] => {
+  const entries = Object.entries(urls).map(([path, url]) => {
+    const after = path.split(`/${segment}/`)[1] ?? '';
+    const parts = after.split('/');
+    const fileName = parts[parts.length - 1] ?? after;
+    const packName =
+      parts.length >= 2 ? (parts[0] ?? '资源') : (fileName.replace(/\.(png|jpg|jpeg|webp)$/i, '') || '资源');
+    return { path, url, fileName, packName };
+  });
+
+  const map = new Map<string, TemplateImage[]>();
+  for (const e of entries) {
+    const arr = map.get(e.packName) ?? [];
+    arr.push({ url: e.url, fileName: e.fileName, path: e.path });
+    map.set(e.packName, arr);
+  }
+
+  const toSortKey = (fileName: string) => {
+    const base = fileName.replace(/\.(png|jpg|jpeg|webp)$/i, '');
+    const n = Number.parseInt(base, 10);
+    if (Number.isFinite(n)) return n;
+    return Number.MAX_SAFE_INTEGER;
+  };
+
+  const packs: TemplatePack[] = [];
+  for (const [name, images] of map.entries()) {
+    const sorted = [...images].sort((a, b) => toSortKey(a.fileName) - toSortKey(b.fileName));
+    const cover = sorted.find((x) => /^1\./.test(x.fileName))?.url ?? sorted[0]?.url ?? '';
+    if (!cover) continue;
+    packs.push({ id: `${kind}:${name}`, name, images: sorted, coverUrl: cover, kind });
+  }
+
+  return packs.sort((a, b) => a.name.localeCompare(b.name, 'zh-Hans-CN'));
+};
+
+function isLikelyImageUrl(input: string) {
+  const v = input.trim();
+  if (!v) return false;
+  if (v.startsWith('data:image/')) return true;
+  if (/\.(png|jpg|jpeg|webp|gif|svg)(\?.*)?$/i.test(v)) return true;
+  if (v.startsWith('blob:')) return true;
+  if (v.startsWith('/')) return true;
+  return false;
+}
+
 type BlueprintKind =
   | 'prototype'
   | 'art'
@@ -61,6 +131,7 @@ function uid() {
 export function Workspace() {
   const [searchParams] = useSearchParams();
   const projectId = searchParams.get('project');
+  const templateId = searchParams.get('template');
   const navigate = useNavigate();
   const [projectName, setProjectName] = useState('Untitled');
   const [isEditingName, setIsEditingName] = useState(false);
@@ -76,6 +147,19 @@ export function Workspace() {
   const [chatAppear, setChatAppear] = useState(false);
   const [zoom, setZoom] = useState(1);
   const [viewportSize, setViewportSize] = useState({ w: window.innerWidth, h: window.innerHeight });
+  const templatePacks = useMemo<TemplatePack[]>(
+    () => [
+      ...buildTemplatePacksFromFolder('style-models', STYLE_TEMPLATE_IMAGE_URLS, 'style'),
+      ...buildTemplatePacksFromFolder('game-templates', GAME_TEMPLATE_IMAGE_URLS, 'game'),
+      ...buildTemplatePacksFromFolder('character-templates', CHARACTER_TEMPLATE_IMAGE_URLS, 'character'),
+    ],
+    [],
+  );
+  const activeTemplatePack = useMemo<TemplatePack | null>(() => {
+    if (!templateId) return null;
+    return templatePacks.find((p) => p.id === templateId) ?? null;
+  }, [templateId, templatePacks]);
+  const templateInitRef = useRef<string | null>(null);
   const blueprintDragRef = useRef<{
     active: boolean;
     dragging: boolean;
@@ -128,6 +212,66 @@ export function Workspace() {
     setAddMenuOpen(false);
     cancelAddMenuClose();
   };
+
+  useEffect(() => {
+    if (!projectId) return;
+    if (!activeTemplatePack) return;
+    if (blueprints.length > 0) return;
+    if (templateInitRef.current === activeTemplatePack.id) return;
+    templateInitRef.current = activeTemplatePack.id;
+
+    const now = Date.now();
+    const summaryId = uid();
+    const groupWidth = Math.min(520, viewportSize.w - 24);
+    const summaryX = Math.max(12, (viewportSize.w - groupWidth) / 2);
+    const summaryY = 86;
+    const imageCardW = 260;
+    const imageCardH = 236;
+    const gap = 24;
+    const startX = Math.max(96, summaryX - 120);
+    const startY = 360;
+    const cols = Math.max(2, Math.floor((viewportSize.w - startX - 36) / (imageCardW + gap)));
+
+    const nextBlueprints: BlueprintInstance[] = [
+      {
+        id: summaryId,
+        kind: 'templates',
+        pos: { x: summaryX, y: summaryY },
+        records: [
+          {
+            id: uid(),
+            input: `模板：${activeTemplatePack.name}`,
+            output: `已加载 ${activeTemplatePack.images.length} 张素材，已生成图片蓝图节点并按网格排列。`,
+            createdAt: now,
+          },
+        ],
+        chatInput: '',
+        chatMessages: [
+          {
+            id: uid(),
+            role: 'assistant',
+            content: '模板素材已导入。你可以拖拽图片节点重新排布，也可以继续在这里补充需求，我会把蓝图拆解成步骤。',
+          },
+        ],
+      },
+      ...activeTemplatePack.images.map((img, idx) => {
+        const col = idx % cols;
+        const row = Math.floor(idx / cols);
+        const name = img.fileName.replace(/\.(png|jpg|jpeg|webp)$/i, '');
+        return {
+          id: uid(),
+          kind: 'image',
+          pos: { x: startX + col * (imageCardW + gap), y: startY + row * (imageCardH + gap) },
+          records: [{ id: uid(), input: name, output: img.url, createdAt: now + idx }],
+          chatInput: '',
+          chatMessages: [],
+        };
+      }),
+    ];
+
+    setBlueprints(nextBlueprints);
+    setSelectedBlueprintId(summaryId);
+  }, [activeTemplatePack, blueprints.length, projectId, viewportSize.w, viewportSize.h]);
 
   useEffect(() => {
     setIsEditingName(false);
@@ -666,6 +810,51 @@ export function Workspace() {
                 selected && chatAppearId === bp.id && chatAppear
                   ? 'mt-3 max-h-[260px] opacity-100 translate-y-0 pointer-events-auto'
                   : 'mt-0 max-h-0 opacity-0 -translate-y-3 pointer-events-none';
+
+              const firstRecord = bp.records[0] ?? null;
+              const imageSrc = firstRecord?.output ?? '';
+              const imageTitle = (firstRecord?.input ?? '').trim();
+              if (bp.kind === 'image' && isLikelyImageUrl(imageSrc)) {
+                return (
+                  <div
+                    key={bp.id}
+                    className="absolute left-0 top-0 pointer-events-auto"
+                    style={{ transform: `translate3d(${bp.pos.x}px, ${bp.pos.y}px, 0)` }}
+                  >
+                    <div className="w-[260px] max-w-[78vw] touch-none group" onPointerDown={(e) => startBlueprintDrag(e, bp.id)}>
+                      <div
+                        className={`flex items-center gap-2 select-none cursor-grab active:cursor-grabbing transition-colors ${
+                          selected ? 'text-foreground/92' : 'text-foreground/72'
+                        }`}
+                        data-blueprint-hit="true"
+                        data-blueprint-id={bp.id}
+                      >
+                        <ImageIcon className="w-4 h-4 text-muted-foreground" />
+                        <div className="text-sm font-semibold tracking-tight">{imageTitle || 'Image'}</div>
+                      </div>
+
+                      <div
+                        className={`mt-2 rounded-[26px] border backdrop-blur-xl overflow-hidden transition-[border-color,box-shadow,background-color,opacity] duration-200 ${
+                          selected
+                            ? 'border-primary/42 bg-surface/72 shadow-e3 ring-1 ring-primary/15'
+                            : 'border-border/60 bg-surface/58 shadow-e2 opacity-95'
+                        }`}
+                        data-blueprint-hit="true"
+                        data-blueprint-id={bp.id}
+                      >
+                        <div className="relative w-full aspect-[4/3] bg-surface-2/55">
+                          <img src={imageSrc} alt={imageTitle || 'template-image'} className="absolute inset-0 w-full h-full object-cover" draggable={false} />
+                        </div>
+                        {imageTitle ? (
+                          <div className="px-3 py-2 border-t border-border/60 bg-surface/55">
+                            <div className="text-[11px] font-semibold text-foreground/85 truncate">{imageTitle}</div>
+                          </div>
+                        ) : null}
+                      </div>
+                    </div>
+                  </div>
+                );
+              }
 
               return (
                 <div

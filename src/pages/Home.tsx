@@ -704,7 +704,7 @@ export function Home() {
     blueprintRef.current?.ensureStage(stageId);
   };
 
-  const createNewProject = () => {
+  const createNewProject = (template?: { id: string; name: string }) => {
     if (!user) {
       openModal('signIn');
       return;
@@ -716,15 +716,17 @@ export function Home() {
       } catch {
         void 0;
       }
-      upsertProject({ id, name: `新项目 ${new Date().toLocaleDateString()}` });
+      const name = template ? `${template.name} 项目` : `新项目 ${new Date().toLocaleDateString()}`;
+      upsertProject({ id, name });
       const next = new URLSearchParams();
       next.set('project', id);
+      if (template) next.set('template', template.id);
       navigate({ pathname: '/workspace', search: next.toString() });
       return;
     }
     const token = session?.access_token ?? '';
     if (!token) return;
-    apiCreateProject({ accessToken: token, name: `新项目 ${new Date().toLocaleDateString()}` })
+    apiCreateProject({ accessToken: token, name: template ? `${template.name} 项目` : `新项目 ${new Date().toLocaleDateString()}` })
       .then((res) => {
         try {
           localStorage.setItem('oc:lastProjectId', res.data.id);
@@ -733,6 +735,7 @@ export function Home() {
         }
         const next = new URLSearchParams();
         next.set('project', res.data.id);
+        if (template) next.set('template', template.id);
         navigate({ pathname: '/workspace', search: next.toString() });
       })
       .catch(() => void 0);
@@ -1879,17 +1882,7 @@ export function Home() {
                       size="sm"
                       className="rounded-full border-border/60 bg-surface/55 backdrop-blur-md hover:bg-surface-2/60 text-foreground/90"
                       onClick={() => {
-                        if (selectedTemplatePack.kind === 'style') {
-                          const id = selectedTemplatePack.styleModelId;
-                          if (id) {
-                            setActiveStyleModelId(id);
-                            setAiDraft(buildStyleModelPrompt(selectedTemplatePack.name));
-                            window.setTimeout(() => aiDraftRef.current?.focus(), 0);
-                            aiBlockRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                          }
-                        } else {
-                          navigate('/assets');
-                        }
+                        createNewProject({ id: selectedTemplatePack.id, name: selectedTemplatePack.name });
                         setTemplateModalId(null);
                         setTemplateProcessOpen(false);
                       }}
