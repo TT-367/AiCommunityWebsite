@@ -1,5 +1,20 @@
-import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
+import { ReactFlow,
+  addEdge,
+  Background,
+  Handle,
+  MarkerType,
+  MiniMap,
+  Position,
+  type Connection,
+  type Edge,
+  type Node,
+  type NodeProps,
+  type ReactFlowInstance,
+  useEdgesState,
+  useNodesState,
+} from '@xyflow/react';
 import {
   AlignLeft,
   ArrowUp,
@@ -8,7 +23,6 @@ import {
   Coins,
   MessageCircle,
   Music2,
-  Mic,
   Sparkles,
   Pilcrow,
   Share2,
@@ -24,9 +38,6 @@ import {
   Image as ImageIcon,
   Video,
   LayoutTemplate,
-  ZoomIn,
-  ZoomOut,
-  Play,
   Maximize2
 } from 'lucide-react';
 import { listProjects, upsertProject } from '../data/projectAssetsStore';
@@ -128,6 +139,125 @@ function uid() {
   return Math.random().toString(36).slice(2) + Date.now().toString(36);
 }
 
+type BlueprintNodeData = {
+  blueprint: BlueprintInstance;
+  updateBlueprint: (nodeId: string, updater: (bp: BlueprintInstance) => BlueprintInstance) => void;
+  sendChat: (nodeId: string) => void;
+};
+
+type FlowNode = Node<BlueprintNodeData, 'blueprint' | 'image'>;
+
+const blueprintHeaderLabel = (kind: BlueprintKind) =>
+  kind === 'text'
+    ? 'Text'
+    : kind === 'image'
+      ? 'Image'
+      : kind === 'video'
+        ? 'Video'
+        : kind === 'media-audio'
+          ? 'Audio'
+          : kind === 'model3d'
+            ? '3D'
+            : kind === 'animation'
+              ? 'Animation'
+              : kind === 'templates'
+                ? 'Templates'
+                : kind === 'art'
+                  ? 'Art'
+                  : kind === 'audio'
+                    ? 'Audio'
+                    : 'Prototype';
+
+function BlueprintFlowNode({ id, data, selected }: NodeProps<BlueprintNodeData>) {
+  const bp = data.blueprint;
+  const hasRecords = bp.records.length > 0;
+  return (
+    <div className="w-[520px] max-w-[90vw]">
+      <Handle type="target" position={Position.Left} style={{ width: 10, height: 10, background: 'rgb(var(--border-strong) / 0.9)', border: '1px solid rgb(var(--border-strong) / 0.9)' }} />
+      <Handle type="source" position={Position.Right} style={{ width: 10, height: 10, background: 'rgb(var(--border-strong) / 0.9)', border: '1px solid rgb(var(--border-strong) / 0.9)' }} />
+      <div className={`rounded-[30px] border backdrop-blur-xl p-4 transition-[border-color,box-shadow,background-color,opacity] duration-200 ${selected ? 'border-primary/42 bg-surface/72 shadow-e3 ring-1 ring-primary/20' : 'border-border/55 bg-surface/58 shadow-e2 opacity-95'}`}>
+        <div className="flex items-center justify-center gap-2 select-none text-foreground/90">
+          <AlignLeft className="w-4 h-4 text-muted-foreground" />
+          <div className="text-lg font-semibold tracking-tight">{blueprintHeaderLabel(bp.kind)}</div>
+        </div>
+        <div className="mt-3 rounded-[26px] border border-border-strong/60 bg-surface-2/40 min-h-[320px]">
+          {!hasRecords ? (
+            <div className="p-7">
+              <div className="text-2xl font-semibold text-muted-foreground/70 tracking-tight">开启你的创作...</div>
+            </div>
+          ) : (
+            <div className="p-5 max-h-[320px] overflow-y-auto no-scrollbar space-y-3">
+              {bp.records.map((r) => (
+                <div key={r.id} className="rounded-2xl border border-border/65 bg-surface/45 px-4 py-3">
+                  <div className="text-[11px] font-semibold text-muted-foreground">输入</div>
+                  <div className="mt-1 text-sm text-foreground whitespace-pre-wrap leading-relaxed">{r.input}</div>
+                  <div className="mt-3 text-[11px] font-semibold text-muted-foreground">输出</div>
+                  <div className="mt-1 text-sm text-foreground-soft/90 whitespace-pre-wrap leading-relaxed">{r.output}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        <div className="mt-4">
+          <textarea
+            value={bp.chatInput}
+            onChange={(e) => data.updateBlueprint(id, (prev) => ({ ...prev, chatInput: e.target.value }))}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                data.sendChat(id);
+              }
+            }}
+            placeholder="描述任何你想要生成的内容"
+            className="nodrag w-full h-[72px] resize-none rounded-3xl border border-border/60 bg-surface/30 px-5 py-4 text-sm text-foreground outline-none placeholder:text-muted-foreground"
+          />
+          <div className="mt-4 flex items-center justify-between">
+            <div className="flex items-center gap-2 text-foreground/85">
+              <Sparkles className="w-4 h-4 text-muted-foreground" />
+              <div className="text-sm font-semibold">Gemini 3.1 Flash Lite</div>
+            </div>
+            <button
+              type="button"
+              className="nodrag w-11 h-11 inline-flex items-center justify-center rounded-2xl border border-border/55 bg-surface-2/70 hover:bg-surface-2/85 transition-colors disabled:opacity-50"
+              aria-label="发送"
+              onClick={() => data.sendChat(id)}
+              disabled={bp.chatInput.trim().length === 0}
+            >
+              <ArrowUp className="w-4 h-4 text-foreground/90" />
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ImageFlowNode({ id, data, selected }: NodeProps<BlueprintNodeData>) {
+  const bp = data.blueprint;
+  const firstRecord = bp.records[0] ?? null;
+  const imageSrc = firstRecord?.output ?? '';
+  const imageTitle = (firstRecord?.input ?? '').trim();
+  return (
+    <div className="w-[260px] max-w-[78vw]">
+      <Handle type="target" position={Position.Left} style={{ width: 10, height: 10, background: 'rgb(var(--border-strong) / 0.9)', border: '1px solid rgb(var(--border-strong) / 0.9)' }} />
+      <Handle type="source" position={Position.Right} style={{ width: 10, height: 10, background: 'rgb(var(--border-strong) / 0.9)', border: '1px solid rgb(var(--border-strong) / 0.9)' }} />
+      <div className={`rounded-[26px] border backdrop-blur-xl overflow-hidden transition-[border-color,box-shadow,background-color,opacity] duration-200 ${selected ? 'border-primary/42 bg-surface/72 shadow-e3 ring-1 ring-primary/15' : 'border-border/60 bg-surface/58 shadow-e2 opacity-95'}`}>
+        <div className="px-3 py-2 border-b border-border/60 bg-surface/55 flex items-center gap-2 select-none">
+          <ImageIcon className="w-4 h-4 text-muted-foreground" />
+          <div className="text-sm font-semibold tracking-tight text-foreground/90 truncate">{imageTitle || 'Image'}</div>
+        </div>
+        <div className="relative w-full aspect-[4/3] bg-surface-2/55">
+          {isLikelyImageUrl(imageSrc) ? <img src={imageSrc} alt={imageTitle || 'template-image'} className="absolute inset-0 w-full h-full object-cover" draggable={false} /> : null}
+        </div>
+        <div className="px-3 py-2 border-t border-border/60 bg-surface/55">
+          <div className="text-[11px] font-semibold text-foreground/85 truncate">{imageTitle || bp.kind}</div>
+        </div>
+      </div>
+      <button type="button" className="sr-only nodrag" onClick={() => data.sendChat(id)} aria-label="noop" />
+    </div>
+  );
+}
+
 export function Workspace() {
   const [searchParams] = useSearchParams();
   const projectId = searchParams.get('project');
@@ -141,11 +271,10 @@ export function Workspace() {
   const addButtonRef = useRef<HTMLButtonElement | null>(null);
   const addMenuRef = useRef<HTMLDivElement | null>(null);
   const addMenuCloseTimerRef = useRef<number | null>(null);
-  const [blueprints, setBlueprints] = useState<BlueprintInstance[]>([]);
-  const [selectedBlueprintId, setSelectedBlueprintId] = useState<string | null>(null);
-  const [chatAppearId, setChatAppearId] = useState<string | null>(null);
-  const [chatAppear, setChatAppear] = useState(false);
-  const [zoom, setZoom] = useState(1);
+  const reactFlowRef = useRef<ReactFlowInstance | null>(null);
+  const [nodes, setNodes, onNodesChange] = useNodesState<FlowNode>([]);
+  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [viewportSize, setViewportSize] = useState({ w: window.innerWidth, h: window.innerHeight });
   const templatePacks = useMemo<TemplatePack[]>(
     () => [
@@ -160,25 +289,6 @@ export function Workspace() {
     return templatePacks.find((p) => p.id === templateId) ?? null;
   }, [templateId, templatePacks]);
   const templateInitRef = useRef<string | null>(null);
-  const blueprintDragRef = useRef<{
-    active: boolean;
-    dragging: boolean;
-    blueprintId: string;
-    pointerId: number;
-    startX: number;
-    startY: number;
-    originX: number;
-    originY: number;
-  }>({
-    active: false,
-    dragging: false,
-    blueprintId: '',
-    pointerId: -1,
-    startX: 0,
-    startY: 0,
-    originX: 0,
-    originY: 0,
-  });
 
   const cancelAddMenuClose = () => {
     if (addMenuCloseTimerRef.current === null) return;
@@ -191,24 +301,100 @@ export function Workspace() {
     addMenuCloseTimerRef.current = window.setTimeout(() => setAddMenuOpen(false), 140);
   };
 
+  const updateBlueprint = useCallback(
+    (nodeId: string, updater: (bp: BlueprintInstance) => BlueprintInstance) => {
+      setNodes((prev) =>
+        prev.map((n) => {
+          if (n.id !== nodeId) return n;
+          const nextBlueprint = updater(n.data.blueprint);
+          return { ...n, data: { ...n.data, blueprint: nextBlueprint } };
+        }),
+      );
+    },
+    [setNodes],
+  );
+
+  const sendChat = useCallback(
+    (nodeId: string) => {
+      updateBlueprint(nodeId, (bp) => {
+        const text = bp.chatInput.trim();
+        if (!text) return bp;
+        const nextRecords: BlueprintRecord[] = [
+          ...bp.records,
+          {
+            id: uid(),
+            input: text,
+            output: '已记录：将基于你的输入生成蓝图节点与步骤（示例输出）。',
+            createdAt: Date.now(),
+          },
+        ];
+        const nextMsgs: BlueprintMessage[] = [
+          ...bp.chatMessages,
+          { id: uid(), role: 'user', content: text },
+          { id: uid(), role: 'assistant', content: `收到：${text}` },
+        ];
+        return { ...bp, chatInput: '', records: nextRecords, chatMessages: nextMsgs };
+      });
+    },
+    [updateBlueprint],
+  );
+
+  const makeNode = useCallback(
+    (bp: BlueprintInstance): FlowNode => ({
+      id: bp.id,
+      type: bp.kind === 'image' ? 'image' : 'blueprint',
+      position: bp.pos,
+      data: { blueprint: bp, updateBlueprint, sendChat },
+    }),
+    [sendChat, updateBlueprint],
+  );
+
+  const makeEdge = useCallback(
+    (source: string, target: string): Edge => ({
+      id: `e_${source}_${target}_${uid()}`,
+      source,
+      target,
+      type: 'smoothstep',
+      markerEnd: { type: MarkerType.ArrowClosed, width: 16, height: 16, color: 'rgb(var(--border-strong) / 0.9)' },
+      style: { stroke: 'rgb(var(--border-strong) / 0.9)', strokeWidth: 1.5 },
+    }),
+    [],
+  );
+
+  const onConnect = useCallback(
+    (connection: Connection) => {
+      setEdges((eds) =>
+        addEdge(
+          {
+            ...connection,
+            type: 'smoothstep',
+            markerEnd: { type: MarkerType.ArrowClosed, width: 16, height: 16, color: 'rgb(var(--border-strong) / 0.9)' },
+            style: { stroke: 'rgb(var(--border-strong) / 0.9)', strokeWidth: 1.5 },
+          },
+          eds,
+        ),
+      );
+    },
+    [setEdges],
+  );
+
   const openBlueprint = (kind: BlueprintKind) => {
     const id = uid();
-    const groupWidth = Math.min(920, window.innerWidth - 24);
-    const x = Math.max(12, (window.innerWidth - groupWidth) / 2);
-    const y = 70;
-    setBlueprints((prev) => {
-      const offset = Math.min(7, prev.length) * 18;
-      const next: BlueprintInstance = {
-        id,
-        kind,
-        pos: { x: x + offset, y: y + offset },
-        records: [],
-        chatInput: '',
-        chatMessages: [{ id: uid(), role: 'assistant', content: '我在。把你的目标说清楚，我会帮你把蓝图拆成可执行步骤。' }],
-      };
-      return [...prev, next];
-    });
-    setSelectedBlueprintId(id);
+    const center = reactFlowRef.current
+      ? reactFlowRef.current.screenToFlowPosition({ x: viewportSize.w / 2, y: viewportSize.h / 2 })
+      : { x: 120, y: 120 };
+    const offset = Math.min(7, nodes.length) * 28;
+    const next: BlueprintInstance = {
+      id,
+      kind,
+      pos: { x: center.x + offset, y: center.y + offset },
+      records: [],
+      chatInput: '',
+      chatMessages: [{ id: uid(), role: 'assistant', content: '我在。把你的目标说清楚，我会帮你把蓝图拆成可执行步骤。' }],
+    };
+    setNodes((prev) => [...prev, makeNode(next)]);
+    if (selectedNodeId) setEdges((prev) => [...prev, makeEdge(selectedNodeId, id)]);
+    setSelectedNodeId(id);
     setAddMenuOpen(false);
     cancelAddMenuClose();
   };
@@ -216,7 +402,7 @@ export function Workspace() {
   useEffect(() => {
     if (!projectId) return;
     if (!activeTemplatePack) return;
-    if (blueprints.length > 0) return;
+    if (nodes.length > 0) return;
     if (templateInitRef.current === activeTemplatePack.id) return;
     templateInitRef.current = activeTemplatePack.id;
 
@@ -269,9 +455,14 @@ export function Workspace() {
       }),
     ];
 
-    setBlueprints(nextBlueprints);
-    setSelectedBlueprintId(summaryId);
-  }, [activeTemplatePack, blueprints.length, projectId, viewportSize.w, viewportSize.h]);
+    setNodes(nextBlueprints.map(makeNode));
+    setEdges(() => {
+      const imageNodes = nextBlueprints.filter((b) => b.kind === 'image');
+      return imageNodes.map((b) => makeEdge(summaryId, b.id));
+    });
+    setSelectedNodeId(summaryId);
+    window.setTimeout(() => reactFlowRef.current?.fitView({ padding: 0.22, duration: 480 }), 0);
+  }, [activeTemplatePack, makeEdge, makeNode, nodes.length, projectId, setEdges, setNodes, viewportSize.h, viewportSize.w]);
 
   useEffect(() => {
     setIsEditingName(false);
@@ -349,186 +540,19 @@ export function Workspace() {
     return () => window.removeEventListener('resize', onResize);
   }, []);
 
-  useEffect(() => {
-    if (!selectedBlueprintId) {
-      setChatAppear(false);
-      setChatAppearId(null);
-      return;
-    }
-    setChatAppearId(selectedBlueprintId);
-    setChatAppear(false);
-    const raf = window.requestAnimationFrame(() => setChatAppear(true));
-    return () => window.cancelAnimationFrame(raf);
-  }, [selectedBlueprintId]);
-
-  const getBlueprintTitle = (kind: BlueprintKind) =>
-    kind === 'prototype'
-      ? '游戏玩法与原型设计'
-      : kind === 'art'
-        ? '美术资产生成'
-        : kind === 'audio'
-          ? '游戏音频生成'
-          : kind === 'templates'
-            ? '热门模板'
-            : kind === 'text'
-              ? '文本'
-              : kind === 'image'
-                ? '图片'
-                : kind === 'video'
-                  ? '视频'
-                  : kind === 'media-audio'
-                    ? '音频'
-                    : kind === 'model3d'
-                      ? '3D模型'
-                      : '动画';
-
-  const getBlueprintHeaderLabel = (kind: BlueprintKind) =>
-    kind === 'text'
-      ? 'Text'
-      : kind === 'image'
-        ? 'Image'
-        : kind === 'video'
-          ? 'Video'
-          : kind === 'media-audio'
-            ? 'Audio'
-            : kind === 'model3d'
-              ? '3D'
-              : kind === 'animation'
-                ? 'Animation'
-                : kind === 'templates'
-                  ? 'Templates'
-                  : kind === 'art'
-                    ? 'Art'
-                    : kind === 'audio'
-                      ? 'Audio'
-                      : 'Prototype';
-
-  const aiToolName = 'Gemini 3.1 Flash Lite';
-  const aiCostPerSend = 1;
-
-  const updateBlueprintSelection = (target: Node | null) => {
-    if (blueprints.length === 0) return;
-    const el = target instanceof HTMLElement ? target : null;
-    const hit = el?.closest('[data-blueprint-hit="true"][data-blueprint-id]');
-    const id = hit?.getAttribute('data-blueprint-id');
-    setSelectedBlueprintId(id ?? null);
-  };
-
-  const sendBlueprintChat = (blueprintId: string) => {
-    setBlueprints((prev) =>
-      prev.map((bp) => {
-        if (bp.id !== blueprintId) return bp;
-        const text = bp.chatInput.trim();
-        if (!text) return bp;
-        const title = getBlueprintTitle(bp.kind);
-        const nextRecords: BlueprintRecord[] = [
-          ...bp.records,
-          {
-            id: uid(),
-            input: text,
-            output: `已记录：将基于「${title}」生成蓝图节点与步骤（示例输出）。`,
-            createdAt: Date.now(),
-          },
-        ];
-        const nextMsgs: BlueprintMessage[] = [...bp.chatMessages, { id: uid(), role: 'user', content: text }, { id: uid(), role: 'assistant', content: `收到：${text}` }];
-        return { ...bp, chatInput: '', records: nextRecords, chatMessages: nextMsgs };
-      }),
-    );
-  };
-
-  const startBlueprintDrag = (e: ReactPointerEvent, blueprintId: string) => {
-    if (e.button !== 0) return;
-    const target = e.target as HTMLElement | null;
-    if (target?.closest('textarea, input, button, a, select, [contenteditable="true"], [data-no-drag="true"]')) return;
-    const bp = blueprints.find((b) => b.id === blueprintId);
-    if (!bp) return;
-    blueprintDragRef.current = {
-      active: true,
-      dragging: false,
-      blueprintId,
-      pointerId: e.pointerId,
-      startX: e.clientX,
-      startY: e.clientY,
-      originX: bp.pos.x,
-      originY: bp.pos.y,
-    };
-
-    const onMove = (ev: PointerEvent) => {
-      const d = blueprintDragRef.current;
-      if (!d.active || d.pointerId !== ev.pointerId) return;
-      const dx = ev.clientX - d.startX;
-      const dy = ev.clientY - d.startY;
-      if (!d.dragging) {
-        if (Math.abs(dx) + Math.abs(dy) < 4) return;
-        d.dragging = true;
-        setSelectedBlueprintId(d.blueprintId);
-      }
-      ev.preventDefault();
-      setBlueprints((prev) =>
-        prev.map((b) =>
-          b.id === d.blueprintId ? { ...b, pos: { x: d.originX + dx / zoom, y: d.originY + dy / zoom } } : b,
-        ),
-      );
-    };
-
-    const end = (ev: PointerEvent) => {
-      const d = blueprintDragRef.current;
-      if (d.pointerId !== ev.pointerId) return;
-      blueprintDragRef.current.active = false;
-      window.removeEventListener('pointermove', onMove);
-      window.removeEventListener('pointerup', end);
-      window.removeEventListener('pointercancel', end);
-    };
-
-    window.addEventListener('pointermove', onMove, { passive: false });
-    window.addEventListener('pointerup', end);
-    window.addEventListener('pointercancel', end);
-  };
-
-  const getBlueprintHeaderClass = (selected: boolean) =>
-    `flex items-center justify-center gap-2 select-none cursor-grab active:cursor-grabbing transition-colors ${selected ? 'text-foreground/92' : 'text-foreground/72'}`;
-  const getBlueprintPanelClass = (selected: boolean) =>
-    `rounded-[30px] border backdrop-blur-xl p-4 transition-[border-color,box-shadow,background-color,opacity] duration-200 ${
-      selected ? 'border-primary/42 bg-surface/72 shadow-e3 ring-1 ring-primary/20' : 'border-border/55 bg-surface/58 shadow-e2 opacity-90'
-    }`;
-  const blueprintChatClass = 'w-[920px] max-w-[92vw] rounded-[30px] border border-primary/35 bg-surface/72 backdrop-blur-xl shadow-e3 ring-1 ring-primary/15 px-6 py-4';
-  const hasBlueprint = blueprints.length > 0;
-  const zoomPct = Math.round(zoom * 100);
-  const canvasTransform = `translate3d(${(1 - zoom) * (viewportSize.w / 2)}px, ${(1 - zoom) * (viewportSize.h / 2)}px, 0) scale(${zoom})`;
-  const setZoomClamped = (next: number) => setZoom(Math.max(0.5, Math.min(2, Number(next.toFixed(3)))));
-  const dotOpacity = Math.max(0.28, Math.min(0.55, 0.55 * Math.pow(zoom, 1.15)));
-  const dotAlpha = Math.max(0.18, Math.min(0.42, 0.42 * Math.pow(zoom, 1.25)));
+  const nodeTypes = useMemo(() => ({ blueprint: BlueprintFlowNode, image: ImageFlowNode }), []);
+  const defaultEdgeOptions = useMemo(
+    () => ({
+      type: 'smoothstep',
+      markerEnd: { type: MarkerType.ArrowClosed, width: 16, height: 16, color: 'rgb(var(--border-strong) / 0.9)' },
+      style: { stroke: 'rgb(var(--border-strong) / 0.9)', strokeWidth: 1.5 },
+    }),
+    [],
+  );
+  const hasBlueprint = nodes.length > 0;
 
   return (
-    <div
-      className="relative flex flex-col h-screen w-screen bg-background text-foreground overflow-hidden font-sans"
-      onPointerDownCapture={(e) => {
-        updateBlueprintSelection(e.target as Node | null);
-      }}
-      onMouseDownCapture={(e) => {
-        updateBlueprintSelection(e.target as Node | null);
-      }}
-      onTouchStartCapture={(e) => {
-        updateBlueprintSelection(e.target as Node | null);
-      }}
-      onWheel={(e) => {
-        if (!e.ctrlKey && !e.metaKey) return;
-        e.preventDefault();
-        const delta = e.deltaY;
-        const next = delta > 0 ? zoom * 0.92 : zoom * 1.08;
-        setZoomClamped(next);
-      }}
-    >
-      {/* Dot Grid Background */}
-      <div
-        className="absolute inset-0 pointer-events-none"
-        style={{
-          opacity: dotOpacity,
-          backgroundImage: `radial-gradient(rgb(var(--muted-foreground) / ${dotAlpha}) 1.35px, transparent 1.35px)`,
-          backgroundSize: `${24 * zoom}px ${24 * zoom}px`,
-          backgroundPosition: `${(1 - zoom) * (viewportSize.w / 2)}px ${(1 - zoom) * (viewportSize.h / 2)}px`,
-        }}
-      />
+    <div className="relative flex flex-col h-screen w-screen bg-background text-foreground overflow-hidden font-sans">
 
       {/* Header */}
       <header className="relative z-10 flex items-center justify-between h-14 px-4 border-b border-border/70 bg-surface/65 backdrop-blur-md">
@@ -724,261 +748,90 @@ export function Workspace() {
           ) : null}
         </div>
 
-        {/* Canvas Center */}
-        <div className="flex-1 flex flex-col items-center justify-center relative z-0">
-          {!hasBlueprint ? (
-            <>
-              <div className="flex items-center gap-2 text-muted-foreground bg-surface/45 px-6 py-2.5 rounded-full border border-border/60 backdrop-blur-sm cursor-pointer hover:bg-surface-2/55 hover:text-foreground/80 transition-all">
-                <Maximize2 className="w-4 h-4" />
-                <span className="text-sm font-medium tracking-wide">双击画布自由生成, 或查看模板</span>
-              </div>
-
-              <div className="flex items-center gap-3 mt-6">
-                <button
-                  className="flex items-center gap-2 px-4 py-2 rounded-full bg-surface/55 hover:bg-surface-2/65 border border-border/75 transition-all text-sm font-medium text-foreground/85"
-                  type="button"
-                  onClick={() => openBlueprint('prototype')}
-                >
-                  <Shapes className="w-4 h-4 text-indigo-400" />
-                  游戏玩法与原型设计
-                </button>
-                <button
-                  className="flex items-center gap-2 px-4 py-2 rounded-full bg-surface/55 hover:bg-surface-2/65 border border-border/75 transition-all text-sm font-medium text-foreground/85"
-                  type="button"
-                  onClick={() => openBlueprint('art')}
-                >
-                  <ImageIcon className="w-4 h-4 text-emerald-400" />
-                  美术资产生成
-                </button>
-                <button
-                  className="flex items-center gap-2 px-4 py-2 rounded-full bg-surface/55 hover:bg-surface-2/65 border border-border/75 transition-all text-sm font-medium text-foreground/85"
-                  type="button"
-                  onClick={() => openBlueprint('audio')}
-                >
-                  <Music2 className="w-4 h-4 text-amber-400" />
-                  游戏音频生成
-                </button>
-                <button
-                  className="flex items-center gap-2 px-4 py-2 rounded-full bg-surface/55 hover:bg-surface-2/65 border border-border/75 transition-all text-sm font-medium text-foreground/85"
-                  type="button"
-                  onClick={() => openBlueprint('templates')}
-                >
-                  <LayoutTemplate className="w-4 h-4 text-blue-400" />
-                  热门模板
-                </button>
-              </div>
-            </>
-          ) : null}
+        <div className="absolute inset-0 z-0">
+          <ReactFlow
+            nodes={nodes}
+            edges={edges}
+            onNodesChange={onNodesChange}
+            onEdgesChange={onEdgesChange}
+            onConnect={onConnect}
+            nodeTypes={nodeTypes}
+            defaultEdgeOptions={defaultEdgeOptions}
+            fitView
+            minZoom={0.35}
+            maxZoom={2}
+            proOptions={{ hideAttribution: true }}
+            onInit={(instance) => {
+              reactFlowRef.current = instance;
+            }}
+            onNodeClick={(_, node) => setSelectedNodeId(node.id)}
+            onPaneClick={() => setSelectedNodeId(null)}
+            className="bg-transparent"
+          >
+            <Background variant="dots" gap={24} size={1.4} color="rgb(var(--muted-foreground) / 0.28)" />
+            <MiniMap
+              position="bottom-right"
+              pannable
+              zoomable
+              style={{
+                backgroundColor: 'rgb(var(--surface) / 0.92)',
+                border: '1px solid rgb(var(--border) / 0.85)',
+                borderRadius: 16,
+                boxShadow: '0 22px 60px -18px rgb(0 0 0 / 0.72)',
+              }}
+              maskColor="rgb(var(--background) / 0.82)"
+              nodeColor={(n) => (n.type === 'image' ? 'rgb(var(--muted-foreground) / 0.75)' : 'rgb(var(--foreground) / 0.85)')}
+              nodeStrokeColor={() => 'rgb(var(--border-strong) / 0.95)'}
+              nodeBorderRadius={10}
+            />
+          </ReactFlow>
         </div>
 
-        {/* Bottom Left Controls */}
-        <div className="absolute left-24 bottom-6 z-10 flex items-center gap-3">
-          <div className="flex items-center gap-1 bg-surface/55 border border-border/75 rounded-full p-1 backdrop-blur-md shadow-e2">
-            <button
-              type="button"
-              className="w-8 h-8 rounded-full flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-surface-2/60 transition-colors"
-              onClick={() => setZoomClamped(zoom * 0.9)}
-              aria-label="缩小"
-            >
-              <ZoomOut className="w-4 h-4" />
-            </button>
-            <div className="w-[1px] h-4 bg-border/80 mx-1" />
-            <span className="text-xs font-medium text-foreground/80 w-12 text-center">{zoomPct}%</span>
-            <div className="w-[1px] h-4 bg-border/80 mx-1" />
-            <button
-              type="button"
-              className="w-8 h-8 rounded-full flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-surface-2/60 transition-colors"
-              onClick={() => setZoomClamped(zoom * 1.1)}
-              aria-label="放大"
-            >
-              <ZoomIn className="w-4 h-4" />
-            </button>
+        {!hasBlueprint ? (
+          <div className="absolute inset-0 z-[1] flex flex-col items-center justify-center">
+            <div className="flex items-center gap-2 text-muted-foreground bg-surface/45 px-6 py-2.5 rounded-full border border-border/60 backdrop-blur-sm cursor-pointer hover:bg-surface-2/55 hover:text-foreground/80 transition-all">
+              <Maximize2 className="w-4 h-4" />
+              <span className="text-sm font-medium tracking-wide">双击画布自由生成, 或查看模板</span>
+            </div>
+
+            <div className="flex items-center gap-3 mt-6">
+              <button
+                className="flex items-center gap-2 px-4 py-2 rounded-full bg-surface/55 hover:bg-surface-2/65 border border-border/75 transition-all text-sm font-medium text-foreground/85"
+                type="button"
+                onClick={() => openBlueprint('prototype')}
+              >
+                <Shapes className="w-4 h-4 text-indigo-400" />
+                游戏玩法与原型设计
+              </button>
+              <button
+                className="flex items-center gap-2 px-4 py-2 rounded-full bg-surface/55 hover:bg-surface-2/65 border border-border/75 transition-all text-sm font-medium text-foreground/85"
+                type="button"
+                onClick={() => openBlueprint('art')}
+              >
+                <ImageIcon className="w-4 h-4 text-emerald-400" />
+                美术资产生成
+              </button>
+              <button
+                className="flex items-center gap-2 px-4 py-2 rounded-full bg-surface/55 hover:bg-surface-2/65 border border-border/75 transition-all text-sm font-medium text-foreground/85"
+                type="button"
+                onClick={() => openBlueprint('audio')}
+              >
+                <Music2 className="w-4 h-4 text-amber-400" />
+                游戏音频生成
+              </button>
+              <button
+                className="flex items-center gap-2 px-4 py-2 rounded-full bg-surface/55 hover:bg-surface-2/65 border border-border/75 transition-all text-sm font-medium text-foreground/85"
+                type="button"
+                onClick={() => openBlueprint('templates')}
+              >
+                <LayoutTemplate className="w-4 h-4 text-blue-400" />
+                热门模板
+              </button>
+            </div>
           </div>
-          <button className="w-10 h-10 rounded-full bg-surface/45 border border-border/70 flex items-center justify-center text-foreground/85 hover:text-foreground hover:bg-surface-2/55 backdrop-blur-md transition-colors shadow-e2">
-            <Play className="w-4 h-4 ml-0.5" />
-          </button>
-        </div>
+        ) : null}
 
       </div>
-
-      {hasBlueprint ? (
-        <div className="absolute inset-0 z-[1] pointer-events-none">
-          <div className="absolute inset-0 pointer-events-none" style={{ transform: canvasTransform, transformOrigin: '0 0' }}>
-            {blueprints.map((bp) => {
-              const selected = selectedBlueprintId === bp.id;
-              const blueprintChatMotionClass =
-                selected && chatAppearId === bp.id && chatAppear
-                  ? 'mt-3 max-h-[260px] opacity-100 translate-y-0 pointer-events-auto'
-                  : 'mt-0 max-h-0 opacity-0 -translate-y-3 pointer-events-none';
-
-              const firstRecord = bp.records[0] ?? null;
-              const imageSrc = firstRecord?.output ?? '';
-              const imageTitle = (firstRecord?.input ?? '').trim();
-              if (bp.kind === 'image' && isLikelyImageUrl(imageSrc)) {
-                return (
-                  <div
-                    key={bp.id}
-                    className="absolute left-0 top-0 pointer-events-auto"
-                    style={{ transform: `translate3d(${bp.pos.x}px, ${bp.pos.y}px, 0)` }}
-                  >
-                    <div className="w-[260px] max-w-[78vw] touch-none group" onPointerDown={(e) => startBlueprintDrag(e, bp.id)}>
-                      <div
-                        className={`flex items-center gap-2 select-none cursor-grab active:cursor-grabbing transition-colors ${
-                          selected ? 'text-foreground/92' : 'text-foreground/72'
-                        }`}
-                        data-blueprint-hit="true"
-                        data-blueprint-id={bp.id}
-                      >
-                        <ImageIcon className="w-4 h-4 text-muted-foreground" />
-                        <div className="text-sm font-semibold tracking-tight">{imageTitle || 'Image'}</div>
-                      </div>
-
-                      <div
-                        className={`mt-2 rounded-[26px] border backdrop-blur-xl overflow-hidden transition-[border-color,box-shadow,background-color,opacity] duration-200 ${
-                          selected
-                            ? 'border-primary/42 bg-surface/72 shadow-e3 ring-1 ring-primary/15'
-                            : 'border-border/60 bg-surface/58 shadow-e2 opacity-95'
-                        }`}
-                        data-blueprint-hit="true"
-                        data-blueprint-id={bp.id}
-                      >
-                        <div className="relative w-full aspect-[4/3] bg-surface-2/55">
-                          <img src={imageSrc} alt={imageTitle || 'template-image'} className="absolute inset-0 w-full h-full object-cover" draggable={false} />
-                        </div>
-                        {imageTitle ? (
-                          <div className="px-3 py-2 border-t border-border/60 bg-surface/55">
-                            <div className="text-[11px] font-semibold text-foreground/85 truncate">{imageTitle}</div>
-                          </div>
-                        ) : null}
-                      </div>
-                    </div>
-                  </div>
-                );
-              }
-
-              return (
-                <div
-                  key={bp.id}
-                  className="absolute left-0 top-0 pointer-events-auto"
-                  style={{ transform: `translate3d(${bp.pos.x}px, ${bp.pos.y}px, 0)` }}
-                >
-                <div className="w-[920px] max-w-[92vw] touch-none group" onPointerDown={(e) => startBlueprintDrag(e, bp.id)}>
-                    <div className={getBlueprintHeaderClass(selected)} data-blueprint-hit="true" data-blueprint-id={bp.id}>
-                      <AlignLeft className="w-4 h-4 text-muted-foreground" />
-                      <div className="text-lg font-semibold tracking-tight">{getBlueprintHeaderLabel(bp.kind)}</div>
-                    </div>
-
-                  <div className="relative mt-3 w-[520px] max-w-[90vw] mx-auto" data-blueprint-hit="true" data-blueprint-id={bp.id}>
-                    <button
-                      type="button"
-                      data-no-drag="true"
-                      aria-label="添加"
-                      className={`absolute left-[-64px] top-1/2 -translate-y-1/2 w-11 h-11 rounded-full border border-border/60 bg-surface/30 backdrop-blur-md shadow-e2 inline-flex items-center justify-center transition-[opacity,transform,background-color,border-color,color] duration-150 ${
-                        selected
-                          ? 'opacity-100 scale-100 pointer-events-auto -translate-x-0 text-foreground/80'
-                          : 'opacity-0 scale-90 pointer-events-none -translate-x-2 text-foreground/60 group-hover:opacity-100 group-hover:scale-100 group-hover:pointer-events-auto group-hover:-translate-x-0'
-                      } hover:bg-surface-2/55 hover:border-border-strong/70 hover:text-foreground`}
-                    >
-                      <Plus className="w-5 h-5" />
-                    </button>
-                    <button
-                      type="button"
-                      data-no-drag="true"
-                      aria-label="添加"
-                      className={`absolute right-[-64px] top-1/2 -translate-y-1/2 w-11 h-11 rounded-full border border-border/60 bg-surface/30 backdrop-blur-md shadow-e2 inline-flex items-center justify-center transition-[opacity,transform,background-color,border-color,color] duration-150 ${
-                        selected
-                          ? 'opacity-100 scale-100 pointer-events-auto translate-x-0 text-foreground/80'
-                          : 'opacity-0 scale-90 pointer-events-none translate-x-2 text-foreground/60 group-hover:opacity-100 group-hover:scale-100 group-hover:pointer-events-auto group-hover:translate-x-0'
-                      } hover:bg-surface-2/55 hover:border-border-strong/70 hover:text-foreground`}
-                    >
-                      <Plus className="w-5 h-5" />
-                    </button>
-
-                    <div className={getBlueprintPanelClass(selected)}>
-                      <div className="rounded-[26px] border border-border-strong/60 bg-surface-2/40 min-h-[320px]">
-                        {bp.records.length === 0 ? (
-                          <div className="p-7">
-                            <div className="text-2xl font-semibold text-muted-foreground/70 tracking-tight">开启你的创作...</div>
-                          </div>
-                        ) : (
-                          <div className="p-5 max-h-[320px] overflow-y-auto no-scrollbar space-y-3">
-                            {bp.records.map((r) => (
-                              <div key={r.id} className="rounded-2xl border border-border/65 bg-surface/45 px-4 py-3">
-                                <div className="text-[11px] font-semibold text-muted-foreground">输入</div>
-                                <div className="mt-1 text-sm text-foreground whitespace-pre-wrap leading-relaxed">{r.input}</div>
-                                <div className="mt-3 text-[11px] font-semibold text-muted-foreground">输出</div>
-                                <div className="mt-1 text-sm text-foreground-soft/90 whitespace-pre-wrap leading-relaxed">{r.output}</div>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                    <div
-                      data-blueprint-hit="true"
-                      data-blueprint-id={bp.id}
-                      className={`overflow-hidden transition-[transform,opacity,max-height,margin] duration-150 ease-out will-change-transform ${blueprintChatMotionClass}`}
-                    >
-                      <div className={blueprintChatClass}>
-                        <textarea
-                          value={bp.chatInput}
-                          onChange={(e) =>
-                            setBlueprints((prev) => prev.map((b) => (b.id === bp.id ? { ...b, chatInput: e.target.value } : b)))
-                          }
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' && !e.shiftKey) {
-                              e.preventDefault();
-                              sendBlueprintChat(bp.id);
-                            }
-                          }}
-                          placeholder="描述任何你想要生成的内容"
-                          className="w-full h-[72px] resize-none rounded-3xl border border-border/60 bg-surface/30 px-5 py-4 text-sm text-foreground outline-none placeholder:text-muted-foreground"
-                        />
-
-                        <div className="mt-4 flex items-center justify-between">
-                          <div className="flex items-center gap-2 text-foreground/85">
-                            <Sparkles className="w-4 h-4 text-muted-foreground" />
-                            <div className="text-sm font-semibold">{aiToolName}</div>
-                          </div>
-
-                          <div className="flex items-center gap-3 text-muted-foreground">
-                            <button
-                              type="button"
-                              className="w-10 h-10 rounded-2xl border border-border/55 bg-surface/30 hover:bg-surface-2/55 transition-colors inline-flex items-center justify-center"
-                              aria-label="语音输入"
-                            >
-                              <Mic className="w-4 h-4" />
-                            </button>
-                            <div className="w-px h-6 bg-border/70" />
-                            <div className="text-sm font-semibold">1×</div>
-                            <div className="flex items-center rounded-2xl border border-border/55 bg-surface-2/55 overflow-hidden">
-                              <div className="flex items-center gap-2 px-3 py-2 text-foreground/85">
-                                <Coins className="w-4 h-4 text-muted-foreground" />
-                                <div className="text-sm font-semibold">{aiCostPerSend}</div>
-                              </div>
-                              <button
-                                type="button"
-                                className="w-11 h-11 inline-flex items-center justify-center bg-surface-2/70 hover:bg-surface-2/85 transition-colors disabled:opacity-50"
-                                aria-label="发送"
-                                onClick={() => sendBlueprintChat(bp.id)}
-                                disabled={bp.chatInput.trim().length === 0}
-                              >
-                                <ArrowUp className="w-4 h-4 text-foreground/90" />
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      ) : null}
     </div>
   );
 }
