@@ -38,6 +38,9 @@ import {
   Image as ImageIcon,
   Video,
   LayoutTemplate,
+  Search,
+  ZoomIn,
+  ZoomOut,
   Maximize2
 } from 'lucide-react';
 import { listProjects, upsertProject } from '../data/projectAssetsStore';
@@ -272,6 +275,7 @@ export function Workspace() {
   const addMenuRef = useRef<HTMLDivElement | null>(null);
   const addMenuCloseTimerRef = useRef<number | null>(null);
   const reactFlowRef = useRef<ReactFlowInstance | null>(null);
+  const [zoomPct, setZoomPct] = useState(100);
   const [nodes, setNodes, onNodesChange] = useNodesState<FlowNode>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
@@ -763,7 +767,9 @@ export function Workspace() {
             proOptions={{ hideAttribution: true }}
             onInit={(instance) => {
               reactFlowRef.current = instance;
+              setZoomPct(Math.round(instance.getViewport().zoom * 100));
             }}
+            onMoveEnd={(_, vp) => setZoomPct(Math.round(vp.zoom * 100))}
             onNodeClick={(_, node) => setSelectedNodeId(node.id)}
             onPaneClick={() => setSelectedNodeId(null)}
             className="bg-transparent"
@@ -773,6 +779,7 @@ export function Workspace() {
               position="bottom-right"
               pannable
               zoomable
+              className="reactflow-minimap"
               style={{
                 backgroundColor: 'rgb(var(--surface) / 0.92)',
                 border: '1px solid rgb(var(--border) / 0.85)',
@@ -830,6 +837,38 @@ export function Workspace() {
             </div>
           </div>
         ) : null}
+
+        <div className="absolute left-24 bottom-6 z-10 flex items-center gap-3">
+          <div className="flex items-center gap-1 bg-surface/55 border border-border/75 rounded-full px-2 py-1.5 backdrop-blur-md shadow-e2">
+            <button
+              type="button"
+              className="w-8 h-8 rounded-full flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-surface-2/60 transition-colors"
+              onClick={() => reactFlowRef.current?.fitView({ padding: 0.22, duration: 220 })}
+              aria-label="适配视图"
+            >
+              <Search className="w-4 h-4" />
+            </button>
+            <div className="w-[1px] h-4 bg-border/80 mx-1" />
+            <span className="text-xs font-medium text-foreground/80 w-14 text-center tabular-nums">{zoomPct}%</span>
+            <div className="w-[1px] h-4 bg-border/80 mx-1" />
+            <button
+              type="button"
+              className="w-8 h-8 rounded-full flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-surface-2/60 transition-colors"
+              onClick={() => reactFlowRef.current?.zoomOut({ duration: 180 })}
+              aria-label="缩小"
+            >
+              <ZoomOut className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              className="w-8 h-8 rounded-full flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-surface-2/60 transition-colors"
+              onClick={() => reactFlowRef.current?.zoomIn({ duration: 180 })}
+              aria-label="放大"
+            >
+              <ZoomIn className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
 
       </div>
     </div>

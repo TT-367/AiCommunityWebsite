@@ -88,6 +88,27 @@
   display: none;
 }
 
+.reactflow-minimap {
+  background: rgb(var(--surface) / 0.92) !important;
+}
+
+.reactflow-minimap svg {
+  background: transparent !important;
+}
+
+.reactflow-minimap .react-flow__minimap-mask {
+  fill: rgb(var(--background) / 0.82) !important;
+}
+
+.reactflow-minimap .react-flow__minimap-node {
+  fill: rgb(var(--muted-foreground) / 0.75) !important;
+  stroke: rgb(var(--border-strong) / 0.95) !important;
+}
+
+.reactflow-minimap .react-flow__minimap-node.selected {
+  fill: rgb(var(--foreground) / 0.85) !important;
+}
+
 :root {
   font-family: ui-rounded, "SF Pro Rounded", "SF Pro Display", "Segoe UI Variable Display", "Segoe UI Variable Text", "Segoe UI",
     "HarmonyOS Sans SC", "HarmonyOS Sans", "MiSans", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei UI", "Microsoft YaHei",
